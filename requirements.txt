@@ -1,0 +1,2 @@
+# Runtime Python dependencies
+# Tkinter is provided by the OS package python3-tk on Ubuntu.
