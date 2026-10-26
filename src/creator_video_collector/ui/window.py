@@ -609,7 +609,7 @@ class SettingsPage(_Page):
     def save(self) -> None:
         s = replace(self.win.settings, library=Path(self.library.text()).expanduser(),
                     default_project=self.project.text().strip(), preset=self.preset.currentData(),
-                    quality=self.quality.currentText(), subtitle_langs=self.langs.text().strip() or "en.*,ar.*",
+                    quality=self.quality.currentText(), subtitle_langs=self.langs.text().strip() or settings.Settings().subtitle_langs,
                     engine=self.engine.currentData(), dark=self.dark.isChecked())
         settings.save(s)
         self.win.apply_settings(s)

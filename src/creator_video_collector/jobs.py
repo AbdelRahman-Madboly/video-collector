@@ -57,6 +57,18 @@ def _missing(folder: Path, parts: set) -> set:
     return need
 
 
+def _tidy_stray_subtitles(folder: Path) -> None:
+    """yt-dlp writes subtitles next to the media and moves them into raw/ at the end; a run that stopped
+    early leaves them as video.<lang>.vtt. Move them where they belong."""
+    for f in list(folder.glob("video.*.vtt")) + list(folder.glob("audio.*.vtt")):
+        (folder / "raw").mkdir(exist_ok=True)
+        target = folder / "raw" / ("sub." + f.name.split(".", 1)[1])
+        if target.exists():
+            f.unlink()
+        else:
+            f.replace(target)
+
+
 def _pick_subtitle(raw: Path, langs: str) -> Path | None:
     files = subtitles.find_subtitle_files(raw) if raw.exists() else []
     for pattern in [p.strip().rstrip(".*").rstrip("*") for p in langs.split(",") if p.strip()]:
@@ -130,7 +142,12 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
             on_line(line)
         if download(cmd, keep) != 0:
             errors = [l for l in lines if l.startswith("ERROR")] or lines[-1:] or ["yt-dlp failed"]
-            raise JobError(errors[-1].removeprefix("ERROR:").strip())
+            reason = errors[-1].removeprefix("ERROR:").strip()
+            media = {"video": "video.mp4", "audio": "audio.mp3"}
+            if any(part in need and not (folder / name).exists() for part, name in media.items()):
+                raise JobError(reason)
+            on_line(f"Kept going without a part: {reason}")     # a subtitle or thumbnail failed, not the video
+        _tidy_stray_subtitles(folder)
 
     transcript_state = "none"
     if (folder / "transcript.txt").exists():

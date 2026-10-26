@@ -143,7 +143,7 @@ def write_index(project_folder: Path) -> Path:
     lines = [f"# {project_folder.name}: videos", "",
              "One folder per video: transcript.txt, summary.md, info.md, thumbnail.jpg and the video when kept.", ""]
     for e in entries:
-        lines.append(f"- **{e.day} [{e.title}]({e.folder.name}/)** · {e.channel or 'unknown channel'} · {e.url}")
+        lines.append(f"- **{e.day} [{e.title}](<{e.folder.name}/>)** · {e.channel or 'unknown channel'} · {e.url}")
         if (s := _summary_line(e.folder)):
             lines.append(f"  - {s}")
     out = project_folder / "INDEX.md"

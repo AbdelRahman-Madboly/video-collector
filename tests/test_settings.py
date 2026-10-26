@@ -6,7 +6,7 @@ from creator_video_collector import settings
 def test_defaults_when_nothing_is_saved():
     s = settings.load()
     assert s.library == Path.home() / "Videos" / "Video Collector"
-    assert (s.preset, s.quality, s.subtitle_langs, s.engine, s.default_project) == ("watch", "720", "en.*,ar.*", "cli-a", "")
+    assert (s.preset, s.quality, s.subtitle_langs, s.engine, s.default_project) == ("watch", "720", "en,en-orig,en-US,en-GB,ar,ar-orig", "cli-a", "")
 
 
 def test_save_and_load_round_trip(tmp_path):

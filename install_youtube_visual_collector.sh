@@ -59,9 +59,11 @@ if [ -f "$SOURCE_REQUIREMENTS" ]; then
   fi
 fi
 
+UV="$HOME/.local/bin/uv"; [ -x "$UV" ] || UV="$(command -v uv)"
+"$UV" sync --project "$APP_DIR" --quiet
 cat > "$BIN_DIR/youtube-visual-collector" <<EOF
 #!/usr/bin/env bash
-python3 "$APP_DIR/youtube_visual_collector.py"
+cd "$APP_DIR" && exec "$UV" run --project "$APP_DIR" python youtube_visual_collector.py "\$@"
 EOF
 chmod +x "$BIN_DIR/youtube-visual-collector"
 

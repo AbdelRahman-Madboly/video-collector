@@ -137,3 +137,22 @@ def test_a_link_can_never_become_a_yt_dlp_option(tmp_path):
     bad = VideoMetadata(title="L", qualities=[], manual_subtitles=[], auto_subtitles=[], is_playlist=True,
                         entries=("https://y/ok", "--exec=touch x", "file:///etc/passwd"))
     assert jobs.expand("https://y/list", True, lambda u: bad) == ["https://y/ok"]
+
+
+def test_a_failed_subtitle_does_not_fail_the_video_and_a_stray_subtitle_is_still_used(tmp_path):
+    def partly(cmd, on_line):
+        out = cmd[cmd.index("-o") + 1]
+        Path(out.replace("%(ext)s", "mp4")).write_bytes(b"media")
+        Path(out.replace("%(ext)s", "en.vtt")).write_text(VTT)      # yt-dlp stopped before moving it into raw/
+        on_line("ERROR: Unable to download video subtitles for 'en-de': HTTP Error 429: Too Many Requests")
+        return 1
+    e, _ = run(tmp_path, "watch", dl=partly)
+    assert e.has_video and e.has_transcript and "0.2 mm" in (e.folder / "transcript.txt").read_text()
+    assert not list(e.folder.glob("video.*.vtt"))
+
+
+def test_subtitle_requests_are_spaced_out(tmp_path):
+    from creator_video_collector import downloader
+    cmd = downloader.build_job_command("https://y/1", tmp_path, {"subs"}, format_selector=None,
+                                       fallback_resolution="720", subtitle_languages="en")
+    assert "--sleep-subtitles" in cmd

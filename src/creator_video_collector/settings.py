@@ -17,7 +17,7 @@ class Settings:
     default_project: str = ""
     preset: str = "watch"            # watch | research | everything | audio
     quality: str = "720"             # 360 | 480 | 720 | 1080 | Best
-    subtitle_langs: str = "en.*,ar.*"
+    subtitle_langs: str = "en,en-orig,en-US,en-GB,ar,ar-orig"  # exact codes: "en.*" also pulls every machine translation
     engine: str = "cli-a"           # cli-a | cli-b | off
     dark: bool = True
 

@@ -223,7 +223,8 @@ def build_job_command(url: str, folder: Path, missing: set, *, format_selector: 
         command += ["-o", f"thumbnail:{folder / 'thumbnail.%(ext)s'}", "--write-thumbnail", "--convert-thumbnails", "jpg"]
     if "subs" in missing:
         command += ["-o", f"subtitle:{folder / 'raw' / 'sub.%(ext)s'}", "--write-subs", "--write-auto-subs",
-                    "--sub-langs", subtitle_languages, "--sub-format", "vtt"]
+                    "--sub-langs", subtitle_languages, "--sub-format", "vtt",
+                    "--sleep-subtitles", "2"]          # YouTube answers 429 to quick subtitle requests
     if "info_json" in missing:
         command += ["-o", f"infojson:{folder / 'raw' / 'info'}", "--write-info-json"]
     return command + ["--", url]                 # after "--" the link can never be read as an option
