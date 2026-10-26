@@ -123,3 +123,17 @@ def test_the_hub_summary_counts_the_videos(tmp_path):
     run(tmp_path, "watch")
     d = json.loads((tmp_path / "shared-data" / "video-collector.json").read_text())
     assert d["data"]["videos"] == 1 and "Coin" in d["headline"]
+
+
+def test_a_link_can_never_become_a_yt_dlp_option(tmp_path):
+    import pytest
+    from creator_video_collector import downloader
+    with pytest.raises(ValueError):
+        downloader.build_job_command("--exec=rm -rf ~", tmp_path, {"video"}, format_selector=None,
+                                     fallback_resolution="720", subtitle_languages="en.*")
+    cmd = downloader.build_job_command("https://y/1", tmp_path, {"video"}, format_selector=None,
+                                       fallback_resolution="720", subtitle_languages="en.*")
+    assert cmd[-2:] == ["--", "https://y/1"]
+    bad = VideoMetadata(title="L", qualities=[], manual_subtitles=[], auto_subtitles=[], is_playlist=True,
+                        entries=("https://y/ok", "--exec=touch x", "file:///etc/passwd"))
+    assert jobs.expand("https://y/list", True, lambda u: bad) == ["https://y/ok"]

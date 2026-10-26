@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import library, subtitles, summarize
-from .downloader import VideoMetadata, build_job_command, fetch_metadata, run_command_stream
+from .downloader import VideoMetadata, build_job_command, fetch_metadata, is_web_link, run_command_stream
 
 PRESETS = {
     "watch": ("video", "thumbnail", "transcript"),
@@ -109,7 +109,7 @@ def expand(url: str, allow_playlist: bool, fetch: Callable[[str], VideoMetadata]
     if not allow_playlist:
         return [url]
     meta = (fetch or (lambda u: fetch_metadata(u, True)))(url)
-    return [u for u in meta.entries if u] if meta.is_playlist and meta.entries else [url]
+    return [u for u in meta.entries if is_web_link(u)] if meta.is_playlist and meta.entries else [url]
 
 
 def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMetadata] | None = None,

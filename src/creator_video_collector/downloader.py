@@ -127,8 +127,19 @@ def _iso_day(yyyymmdd: str) -> str:
     return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}" if len(yyyymmdd) == 8 else ""
 
 
+def is_web_link(url: str) -> bool:
+    """Only http(s) links reach yt-dlp: anything else could be read as an option or a local file."""
+    return bool(re.match(r"^https?://[^\s]+$", url or ""))
+
+
+def require_web_link(url: str) -> str:
+    if not is_web_link(url):
+        raise ValueError(f"Not a web link: {url[:80]}")
+    return url
+
+
 def fetch_metadata(url: str, allow_playlist: bool) -> VideoMetadata:
-    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), url]
+    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), "--", require_web_link(url)]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"yt-dlp check failed with exit code {result.returncode}")
@@ -197,7 +208,8 @@ def build_job_command(url: str, folder: Path, missing: set, *, format_selector: 
     """yt-dlp for one video into its library folder, asking only for the parts still missing.
     Parts: video, audio, thumbnail, subs (into raw/), info_json (into raw/)."""
     folder = Path(folder)
-    command = ["yt-dlp", url, "--no-playlist", "--newline", "--no-part", "--no-overwrites"]
+    require_web_link(url)
+    command = ["yt-dlp", "--no-playlist", "--newline", "--no-part", "--no-overwrites"]
     if "audio" in missing:
         command += ["-o", str(folder / "audio.%(ext)s"),
                     "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
@@ -214,4 +226,4 @@ def build_job_command(url: str, folder: Path, missing: set, *, format_selector: 
                     "--sub-langs", subtitle_languages, "--sub-format", "vtt"]
     if "info_json" in missing:
         command += ["-o", f"infojson:{folder / 'raw' / 'info'}", "--write-info-json"]
-    return command
+    return command + ["--", url]                 # after "--" the link can never be read as an option
