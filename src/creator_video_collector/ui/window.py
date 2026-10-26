@@ -655,8 +655,9 @@ class SettingsPage(_Page):
 def _default_runners(win) -> dict:
     def thumb(url: str) -> bytes:
         import urllib.request
-        with urllib.request.urlopen(url, timeout=10) as r:
-            return r.read()
+        from ..downloader import require_web_link
+        with urllib.request.urlopen(require_web_link(url), timeout=10) as r:
+            return r.read(5_000_000)               # a thumbnail, never more
     return {"fetch": lambda url: fetch_metadata(url, False), "download": None, "summary": procs.run,
             "expand": lambda url: jobs.expand(url, True, lambda u: fetch_metadata(u, True)),
             "launch": lambda argv: subprocess.Popen(argv, start_new_session=True, stdout=subprocess.DEVNULL,

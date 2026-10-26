@@ -206,3 +206,8 @@ def test_stop_all_ends_running_processes():
     procs.stop_all()
     t.join(5)
     assert not t.is_alive() and out["r"].returncode != 0
+
+
+def test_only_web_thumbnails_are_kept():
+    from creator_video_collector import downloader
+    assert downloader.parse_metadata({"id": "x", "title": "T", "thumbnail": "file:///etc/passwd"}).thumbnail == ""

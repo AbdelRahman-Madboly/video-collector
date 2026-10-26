@@ -117,7 +117,7 @@ def parse_metadata(raw: dict) -> VideoMetadata:
         is_playlist=is_playlist,
         playlist_count=playlist_count,
         video_id=str(info.get("id") or ""),
-        thumbnail=info.get("thumbnail") or "",
+        thumbnail=(info.get("thumbnail") or "") if is_web_link(info.get("thumbnail") or "") else "",
         url=info.get("webpage_url") or info.get("original_url") or "",
         upload_date=_iso_day(info.get("upload_date") or ""),
         entries=tuple(e.get("webpage_url") or e.get("url") or "" for e in (raw.get("entries") or []) if e)
