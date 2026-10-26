@@ -20,7 +20,21 @@ def test_cli_a_runs_with_no_tools_and_the_prompt_on_stdin():
     out = summarize.summarize("text", "T", "P", "cli-a", runner=runner)
     assert out.startswith("## TL;DR")
     cmd, stdin = seen[0]
-    assert cmd[:2] == ["cli-a", "-p"] and "--disallowedTools" in cmd and "text" in stdin
+    assert cmd[:2] == ["cli-a", "-p"] and "text" in stdin
+    assert cmd[cmd.index("--tools") + 1] == "" and "--strict-mcp-config" in cmd
+
+
+def test_engines_run_without_tools_in_an_empty_folder():
+    seen = []
+    def runner(cmd, **kw):
+        from pathlib import Path
+        seen.append((cmd, list(Path(kw["cwd"]).iterdir())))
+        return subprocess.CompletedProcess(cmd, 0, "ok", "")
+    summarize.summarize("t", "T", "P", "cli-b", runner=runner)
+    cmd, contents = seen[0]
+    assert contents == []
+    assert ["--disable", "shell_tool"] == cmd[cmd.index("shell_tool") - 1: cmd.index("shell_tool") + 1]
+    assert "unified_exec" in cmd and "read-only" in cmd
 
 
 def test_a_long_transcript_is_summarized_in_parts_then_together():

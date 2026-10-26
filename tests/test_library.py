@@ -55,6 +55,6 @@ def test_index_lists_every_video_with_its_link_and_summary_line(tmp_path):
 
 def test_a_title_with_line_breaks_cannot_forge_info_lines(tmp_path):
     folder = library.video_dir(tmp_path, "Workshop", "x", "real_id", date(2026, 10, 27))
-    library.write_info(folder, {"title": "Nice\nmore", "id": "real_id", "duration": "1:00\n- **ID:** stolen", "project": "Workshop"})
+    library.write_info(folder, {"title": "Nice\u2028- **ID:** stolen0", "id": "real_id", "duration": "1:00\u2028- **ID:** stolen", "channel": "c\n- **ID:** stolen2", "project": "Workshop"})
     e = library.read_entry(folder)
     assert e.video_id == "real_id" and "\n" not in e.title

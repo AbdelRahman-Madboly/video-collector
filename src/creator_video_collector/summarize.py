@@ -1,16 +1,17 @@
 """Summaries of a transcript, written by a command-line tool.
 
-The transcript is untrusted text from the internet, so the engine gets no tools: it can only read the
-prompt and write the summary.
+The transcript is untrusted text from the internet, so the engine gets no tools at all (no shell, no
+files, no web, no MCP servers) and runs in an empty temporary folder: it can only read the prompt and
+write the summary.
 """
 from __future__ import annotations
 
 import subprocess
+import tempfile
 
 ENGINES = ("cli-a", "cli-b", "off")
 LIMIT = 120_000
 TIMEOUT = 600
-SUMMARY_NO_TOOLS = "Bash,Edit,Write,Read,WebFetch,WebSearch,Glob,Grep,NotebookEdit,Task"
 
 
 class SummaryError(Exception):
@@ -45,16 +46,19 @@ Transcript:
 
 def command(engine: str) -> list[str]:
     if engine == "cli-a":
-        return ["cli-a", "-p", "--disallowedTools", SUMMARY_NO_TOOLS]
+        return ["cli-a", "-p", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+                "--setting-sources", "user"]
     if engine == "cli-b":
-        return ["cli-b", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-"]
+        return ["cli-b", "exec", "--skip-git-repo-check", "--sandbox", "read-only",
+                "--disable", "shell_tool", "--disable", "unified_exec", "-"]
     raise SummaryError("Summaries are off")
 
 
 def _ask(prompt: str, engine: str, runner) -> str:
     cmd = command(engine)
     try:
-        out = runner(cmd, input=prompt, capture_output=True, text=True, timeout=TIMEOUT)
+        with tempfile.TemporaryDirectory(prefix="collector-summary-") as empty:
+            out = runner(cmd, input=prompt, capture_output=True, text=True, timeout=TIMEOUT, cwd=empty)
     except FileNotFoundError:
         raise SummaryError(f"{cmd[0]} is not installed") from None
     except subprocess.TimeoutExpired:

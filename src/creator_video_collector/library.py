@@ -49,7 +49,7 @@ def _info_values(folder: Path) -> dict[str, str]:
         return {}
     labels = {label: key for key, label in FIELDS}
     out = {}
-    for line in text.splitlines():
+    for line in text.split("\n"):              # the same line breaks the writer removes, no others
         m = re.match(r"^- \*\*(.+?):\*\* (.*)$", line)
         if m and m.group(1) in labels and labels[m.group(1)] not in out:   # first one wins
             out[labels[m.group(1)]] = m.group(2).strip()
@@ -74,7 +74,7 @@ def video_dir(library: Path, project: str, title: str, video_id: str, day: date)
 
 def _one_line(value) -> str:
     """Values come from the internet (titles, channels): never let one start a new line of info.md."""
-    return re.sub(r"[\x00-\x1f\x7f]+", " ", str(value)).strip()
+    return re.sub(r"[\x00-\x1f\x7f\x85\u2028\u2029]+", " ", str(value)).strip()
 
 
 def write_info(folder: Path, meta: dict) -> None:
