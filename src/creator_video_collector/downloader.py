@@ -26,6 +26,10 @@ class VideoMetadata:
     duration: str = ""
     is_playlist: bool = False
     playlist_count: int = 0
+    video_id: str = ""
+    url: str = ""
+    upload_date: str = ""                      # YYYY-MM-DD
+    entries: tuple = ()                        # links of a playlist's videos
 
 
 def ensure_tool_exists(tool_name: str) -> bool:
@@ -111,7 +115,16 @@ def parse_metadata(raw: dict) -> VideoMetadata:
         duration=info.get("duration_string") or "",
         is_playlist=is_playlist,
         playlist_count=playlist_count,
+        video_id=str(info.get("id") or ""),
+        url=info.get("webpage_url") or info.get("original_url") or "",
+        upload_date=_iso_day(info.get("upload_date") or ""),
+        entries=tuple(e.get("webpage_url") or e.get("url") or "" for e in (raw.get("entries") or []) if e)
+        if is_playlist else (),
     )
+
+
+def _iso_day(yyyymmdd: str) -> str:
+    return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}" if len(yyyymmdd) == 8 else ""
 
 
 def fetch_metadata(url: str, allow_playlist: bool) -> VideoMetadata:
@@ -177,3 +190,28 @@ def run_command_stream(command: List[str], on_line: Callable[[str], None]) -> in
     for line in process.stdout:
         on_line(line.rstrip())
     return process.wait()
+
+
+def build_job_command(url: str, folder: Path, missing: set, *, format_selector: Optional[str],
+                      fallback_resolution: str, subtitle_languages: str) -> List[str]:
+    """yt-dlp for one video into its library folder, asking only for the parts still missing.
+    Parts: video, audio, thumbnail, subs (into raw/), info_json (into raw/)."""
+    folder = Path(folder)
+    command = ["yt-dlp", url, "--no-playlist", "--newline", "--no-part", "--no-overwrites"]
+    if "audio" in missing:
+        command += ["-o", str(folder / "audio.%(ext)s"),
+                    "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
+    elif "video" in missing:
+        command += ["-o", str(folder / "video.%(ext)s"),
+                    "-f", format_selector or resolution_to_format(fallback_resolution),
+                    "--merge-output-format", "mp4", "--remux-video", "mp4"]
+    else:
+        command += ["-o", str(folder / "video.%(ext)s"), "--skip-download"]
+    if "thumbnail" in missing:
+        command += ["-o", f"thumbnail:{folder / 'thumbnail.%(ext)s'}", "--write-thumbnail", "--convert-thumbnails", "jpg"]
+    if "subs" in missing:
+        command += ["-o", f"subtitle:{folder / 'raw' / 'sub.%(ext)s'}", "--write-subs", "--write-auto-subs",
+                    "--sub-langs", subtitle_languages, "--sub-format", "vtt"]
+    if "info_json" in missing:
+        command += ["-o", f"infojson:{folder / 'raw' / 'info'}", "--write-info-json"]
+    return command
