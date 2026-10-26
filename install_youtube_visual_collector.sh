@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-APP_DIR="$HOME/projects/My-Tools/youtube_visual_collector_gui"
+APP_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/Desktop"
 APPLICATIONS_DIR="$HOME/.local/share/applications"
