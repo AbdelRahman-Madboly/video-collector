@@ -99,14 +99,16 @@ def publish(lib: Path) -> None:
     tmp.replace(out)
 
 
-def make_summary(folder: Path, engine: str, runner=subprocess.run) -> bool:
+def make_summary(folder: Path, engine: str, runner=None) -> bool:
     """Write summary.md from transcript.txt; on failure keep everything and note why in info.md."""
     entry = library.read_entry(folder)
     transcript = (folder / "transcript.txt")
     if entry is None or not transcript.exists():
         return False
+    from . import procs
     try:
-        text = summarize.summarize(transcript.read_text(), entry.title, entry.project, engine, runner=runner)
+        text = summarize.summarize(transcript.read_text(), entry.title, entry.project, engine,
+                                   runner=runner or procs.run)
     except summarize.SummaryError as e:
         library.set_summary_state(folder, f"failed, {e}")
         return False
@@ -125,13 +127,18 @@ def expand(url: str, allow_playlist: bool, fetch: Callable[[str], VideoMetadata]
 
 
 def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMetadata] | None = None,
-        download: Callable | None = None, summary_runner=subprocess.run, today: date | None = None) -> library.Entry:
+        download: Callable | None = None, summary_runner=None, today: date | None = None,
+        publish_library: Path | None = None) -> library.Entry:
+    """publish_library: the library the Tools Hub counts (the settings one), when this job goes elsewhere."""
+    from . import procs
+    summary_runner = summary_runner or procs.run
+    parts = set(job.parts) | ({"transcript"} if "summary" in job.parts else set())   # a summary needs its transcript
     fetch = fetch or (lambda u: fetch_metadata(u, False))
     download = download or run_command_stream
     meta = fetch(job.url)
     folder = library.video_dir(job.library, job.project, meta.title, meta.video_id, today or date.today())
     on_line(f"Folder: {folder}")
-    need = _missing(folder, job.parts)
+    need = _missing(folder, parts)
     if need:
         lines: list[str] = []
         cmd = build_job_command(meta.url or job.url, folder, need, format_selector=job.format_selector,
@@ -152,10 +159,10 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
     transcript_state = "none"
     if (folder / "transcript.txt").exists():
         transcript_state = "yes"
-    elif "transcript" in job.parts and (sub := _pick_subtitle(folder / "raw", job.langs)):
+    elif "transcript" in parts and (sub := _pick_subtitle(folder / "raw", job.langs)):
         subtitles.clean_subtitle_file_to_txt(sub, folder / "transcript.txt")
         transcript_state = sub.name.split(".")[-2]
-    if "raw" not in job.parts and (folder / "raw").exists():
+    if "raw" not in parts and (folder / "raw").exists():
         for f in subtitles.find_subtitle_files(folder / "raw"):
             f.unlink()
         if not any((folder / "raw").iterdir()):
@@ -165,14 +172,14 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
                                 "id": meta.video_id, "duration": meta.duration, "uploaded": meta.upload_date,
                                 "downloaded": (today or date.today()).isoformat(),
                                 "project": folder.parent.name, "transcript": transcript_state})
-    if "summary" in job.parts and not (folder / "summary.md").exists():
+    if "summary" in parts and not (folder / "summary.md").exists():
         if (folder / "transcript.txt").exists():
             on_line("Writing the summary…")
             make_summary(folder, job.engine, summary_runner)
         else:
             library.set_summary_state(folder, "none, no transcript")
     library.write_index(folder.parent)
-    publish(job.library)
+    publish(publish_library or job.library)
     return library.read_entry(folder)
 
 

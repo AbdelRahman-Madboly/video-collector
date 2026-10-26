@@ -30,6 +30,7 @@ class VideoMetadata:
     url: str = ""
     upload_date: str = ""                      # YYYY-MM-DD
     entries: tuple = ()                        # links of a playlist's videos
+    thumbnail: str = ""                        # link of the thumbnail picture
 
 
 def ensure_tool_exists(tool_name: str) -> bool:
@@ -116,6 +117,7 @@ def parse_metadata(raw: dict) -> VideoMetadata:
         is_playlist=is_playlist,
         playlist_count=playlist_count,
         video_id=str(info.get("id") or ""),
+        thumbnail=info.get("thumbnail") or "",
         url=info.get("webpage_url") or info.get("original_url") or "",
         upload_date=_iso_day(info.get("upload_date") or ""),
         entries=tuple(e.get("webpage_url") or e.get("url") or "" for e in (raw.get("entries") or []) if e)
@@ -138,9 +140,12 @@ def require_web_link(url: str) -> str:
     return url
 
 
-def fetch_metadata(url: str, allow_playlist: bool) -> VideoMetadata:
-    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), "--", require_web_link(url)]
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def fetch_metadata(url: str, allow_playlist: bool, runner=None) -> VideoMetadata:
+    """One video's details, or with allow_playlist a playlist's video links (read flat: only the list)."""
+    from . import procs
+    flat = ["--flat-playlist"] if allow_playlist else []
+    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), *flat, "--", require_web_link(url)]
+    result = (runner or procs.run)(command, capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"yt-dlp check failed with exit code {result.returncode}")
     return parse_metadata(json.loads(result.stdout))
@@ -196,11 +201,8 @@ def build_download_command(
 
 
 def run_command_stream(command: List[str], on_line: Callable[[str], None]) -> int:
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    assert process.stdout is not None
-    for line in process.stdout:
-        on_line(line.rstrip())
-    return process.wait()
+    from . import procs
+    return procs.stream(command, on_line)
 
 
 def build_job_command(url: str, folder: Path, missing: set, *, format_selector: Optional[str],

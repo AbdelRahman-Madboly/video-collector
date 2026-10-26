@@ -156,3 +156,53 @@ def test_subtitle_requests_are_spaced_out(tmp_path):
     cmd = downloader.build_job_command("https://y/1", tmp_path, {"subs"}, format_selector=None,
                                        fallback_resolution="720", subtitle_languages="en")
     assert "--sleep-subtitles" in cmd
+
+
+def test_summary_brings_its_transcript_along(tmp_path):
+    j = job(tmp_path, "research")
+    j.parts = {"summary"}
+    e = jobs.run(j, on_line=lambda l: None, fetch=lambda url: meta(), download=FakeYtDlp(), summary_runner=summary_ok,
+                 today=TODAY)
+    assert e.has_transcript and e.has_summary
+
+
+def test_a_one_off_folder_does_not_take_over_the_hub_count(tmp_path):
+    j = job(tmp_path, "watch")
+    j.library = tmp_path / "elsewhere"
+    jobs.run(j, on_line=lambda l: None, fetch=lambda url: meta(), download=FakeYtDlp(), summary_runner=summary_ok,
+             today=TODAY, publish_library=tmp_path / "lib")
+    d = json.loads((tmp_path / "shared-data" / "video-collector.json").read_text())
+    assert d["data"]["library"] == str(tmp_path / "lib") and d["data"]["videos"] == 0
+
+
+def test_metadata_keeps_the_thumbnail_link():
+    from creator_video_collector import downloader
+    m = downloader.parse_metadata({"id": "x", "title": "T", "thumbnail": "https://i.ytimg.com/vi/x/hq.jpg"})
+    assert m.thumbnail == "https://i.ytimg.com/vi/x/hq.jpg"
+
+
+def test_playlists_are_read_flat():
+    from creator_video_collector import downloader
+    seen = []
+    def runner(cmd, **kw):
+        seen.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, json.dumps({"entries": [{"url": "https://y/1"}, {"url": "https://y/2"}],
+                                                                "title": "L"}), "")
+    m = downloader.fetch_metadata("https://y/list", True, runner=runner)
+    assert "--flat-playlist" in seen[0] and "--yes-playlist" in seen[0] and m.entries == ("https://y/1", "https://y/2")
+
+
+def test_stop_all_ends_running_processes():
+    from creator_video_collector import procs
+    import threading
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("r", procs.run(["sleep", "30"], capture_output=True, text=True, timeout=60)))
+    t.start()
+    import time
+    for _ in range(100):
+        if procs.running():
+            break
+        time.sleep(0.02)
+    procs.stop_all()
+    t.join(5)
+    assert not t.is_alive() and out["r"].returncode != 0

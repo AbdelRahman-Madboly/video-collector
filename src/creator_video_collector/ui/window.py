@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog, 
                                QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea,
                                QStackedWidget, QVBoxLayout, QWidget)
 
-from .. import jobs, library, settings, summarize
+from .. import jobs, library, procs, settings, summarize
 from ..config import APP_NAME, RESOLUTION_OPTIONS
 from ..downloader import fetch_metadata, is_web_link
 from . import theme
@@ -94,6 +94,8 @@ class DownloadPage(_Page):
         self._jobs: list[jobs.Job] = []
         self._running = False
         self._detected: list = []
+        self._checked_url = ""                  # the link the detected qualities belong to
+        self._last_job_format = None
 
         self.lay.addWidget(_label("Download", "title"))
         top = QHBoxLayout()
@@ -266,7 +268,12 @@ class DownloadPage(_Page):
         has_video = "video" in parts
         self.quality.setVisible(has_video)
         self.quality_label.setVisible(has_video)
-        self.part_boxes["summary"].setEnabled(self.win.settings.engine != "off")
+        off = self.win.settings.engine == "off"
+        self.part_boxes["summary"].setEnabled(not off)
+        if off and self.part_boxes["summary"].isChecked():
+            self.part_boxes["summary"].blockSignals(True)
+            self.part_boxes["summary"].setChecked(False)
+            self.part_boxes["summary"].blockSignals(False)
 
     def _fill_quality(self, detected: list) -> None:
         self._detected = detected
@@ -291,6 +298,7 @@ class DownloadPage(_Page):
         self.btn_check.setEnabled(False)
         self.status.setText("Checking…")
         fetch = self.win.runners["fetch"]
+        self._checked_url = links[0]
         self.win.run(lambda sig: fetch(links[0]), self._checked)
 
     def _checked(self, meta) -> None:
@@ -329,9 +337,24 @@ class DownloadPage(_Page):
         if not parts:
             self.status.setText("Choose at least one thing to get.")
             return
+        if self.playlist.isChecked():
+            self.status.setText("Reading the playlist…")
+            self.btn_start.setEnabled(False)
+            expand = self.win.runners["expand"]
+            self.win.run(lambda sig: [expand(l) for l in links], lambda got: self._expanded(got, parts))
+        else:
+            self._queue([[l] for l in links], parts)
+
+    def _expanded(self, got, parts: set) -> None:
+        self.btn_start.setEnabled(True)
+        if isinstance(got, Exception):
+            self.status.setText(f"Could not read the playlist: {got}")
+            return
+        self._queue(got, parts)
+
+    def _queue(self, groups: list[list[str]], parts: set) -> None:
         urls: list[str] = []
-        for link in links:
-            got = jobs.expand(link, self.playlist.isChecked(), self.win.runners["fetch"])
+        for got in groups:
             if len(got) > 10 and not self.win.runners["confirm"](
                     f"This playlist has {len(got)} videos" + (
                         f", which means {len(got)} summaries" if "summary" in parts else "") + ". Queue them all?",
@@ -342,7 +365,8 @@ class DownloadPage(_Page):
             self.status.setText("Nothing queued.")
             return
         s = self.win.settings
-        fmt = self.quality.currentData() if len(urls) == 1 and self._detected else None
+        fmt = self.quality.currentData() if urls == [self._checked_url] and self._detected else None
+        self._last_job_format = fmt
         quality = s.quality
         m = re.match(r"Up to (\d+)p", self.quality.currentText())
         if m:
@@ -356,6 +380,8 @@ class DownloadPage(_Page):
             QListWidgetItem(f"{url} · Waiting", self.queue)
         self.links.clear()
         self.preview.hide()
+        self._library_override = None          # a changed folder is for this batch only
+        self.reload()                           # also drops a quality detected for the checked link
         self._next()
 
     def queue_done(self) -> bool:
@@ -370,8 +396,8 @@ class DownloadPage(_Page):
         job = self._jobs.pop(0)
         row = self.queue.count() - len(self._jobs) - 1
         self._running = True
-        self.btn_start.setEnabled(True)
         r = self.win.runners
+        home = self.win.settings.library
 
         def work(sig):
             sig.state.emit(row, "Downloading")
@@ -382,7 +408,8 @@ class DownloadPage(_Page):
                     sig.progress.emit(row, float(m.group(1)))
                 elif text.startswith("Writing the summary"):
                     sig.state.emit(row, "Summarizing")
-            return jobs.run(job, on_line, fetch=r["fetch"], download=r["download"], summary_runner=r["summary"])
+            return jobs.run(job, on_line, fetch=r["fetch"], download=r["download"], summary_runner=r["summary"],
+                            publish_library=home)
 
         self.win.run(work, lambda result: self._finished(row, result),
                      on_line=self._line, on_state=self._state, on_progress=lambda _r, p: self.progress.setValue(int(p)))
@@ -630,7 +657,8 @@ def _default_runners(win) -> dict:
         import urllib.request
         with urllib.request.urlopen(url, timeout=10) as r:
             return r.read()
-    return {"fetch": lambda url: fetch_metadata(url, False), "download": None, "summary": subprocess.run,
+    return {"fetch": lambda url: fetch_metadata(url, False), "download": None, "summary": procs.run,
+            "expand": lambda url: jobs.expand(url, True, lambda u: fetch_metadata(u, True)),
             "launch": lambda argv: subprocess.Popen(argv, start_new_session=True, stdout=subprocess.DEVNULL,
                                                     stderr=subprocess.DEVNULL),
             "confirm": lambda text, n: QMessageBox.question(win, APP_NAME, text) == QMessageBox.Yes,
@@ -674,6 +702,17 @@ class MainWindow(QMainWindow):
 
     def current_page(self):
         return self.stack.currentWidget()
+
+    def closeEvent(self, event) -> None:
+        """Closing mid-download asks first, then stops yt-dlp and any summary instead of leaving them
+        running with no window."""
+        busy = self.pages["Download"]._running or procs.running()
+        if busy and not self.runners["confirm"]("Downloads or summaries are still running. Stop them and quit?", 0):
+            event.ignore()
+            return
+        if busy:
+            procs.stop_all()
+        event.accept()
 
     def apply_settings(self, s: settings.Settings) -> None:
         self.settings = s
