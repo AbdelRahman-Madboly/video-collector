@@ -50,7 +50,8 @@ def command(engine: str) -> list[str]:
                 "--setting-sources", "user"]
     if engine == "cli-b":
         return ["cli-b", "exec", "--skip-git-repo-check", "--sandbox", "read-only",
-                "--disable", "shell_tool", "--disable", "unified_exec", "-"]
+                "--disable", "shell_tool", "--disable", "unified_exec",
+                "-c", "mcp_servers={}", "-c", "tools.web_search=false", "-"]
     raise SummaryError("Summaries are off")
 
 

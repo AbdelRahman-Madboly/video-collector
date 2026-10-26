@@ -35,6 +35,7 @@ def test_engines_run_without_tools_in_an_empty_folder():
     assert contents == []
     assert ["--disable", "shell_tool"] == cmd[cmd.index("shell_tool") - 1: cmd.index("shell_tool") + 1]
     assert "unified_exec" in cmd and "read-only" in cmd
+    assert "mcp_servers={}" in cmd and "tools.web_search=false" in cmd
 
 
 def test_a_long_transcript_is_summarized_in_parts_then_together():
