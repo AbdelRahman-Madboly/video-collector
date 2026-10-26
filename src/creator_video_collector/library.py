@@ -51,7 +51,7 @@ def _info_values(folder: Path) -> dict[str, str]:
     out = {}
     for line in text.splitlines():
         m = re.match(r"^- \*\*(.+?):\*\* (.*)$", line)
-        if m and m.group(1) in labels:
+        if m and m.group(1) in labels and labels[m.group(1)] not in out:   # first one wins
             out[labels[m.group(1)]] = m.group(2).strip()
     return out
 
@@ -72,10 +72,15 @@ def video_dir(library: Path, project: str, title: str, video_id: str, day: date)
     return folder
 
 
+def _one_line(value) -> str:
+    """Values come from the internet (titles, channels): never let one start a new line of info.md."""
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", str(value)).strip()
+
+
 def write_info(folder: Path, meta: dict) -> None:
     """info.md: what this video is and what was collected, as a small Markdown card."""
     old = _info_values(folder)
-    merged = {**old, **{k: str(v) for k, v in meta.items() if v not in (None, "")}}
+    merged = {**old, **{k: _one_line(v) for k, v in meta.items() if v not in (None, "")}}
     lines = [f"# {merged.get('title', 'Untitled')}", ""]
     lines += [f"- **{label}:** {merged[key]}" for key, label in FIELDS if merged.get(key)]
     (Path(folder) / INFO).write_text("\n".join(lines) + "\n")

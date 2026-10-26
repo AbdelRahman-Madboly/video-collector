@@ -51,3 +51,10 @@ def test_index_lists_every_video_with_its_link_and_summary_line(tmp_path):
     library.write_info(b, {"title": "Two", "id": "2", "url": "https://y/2", "project": "Workshop"})
     text = library.write_index(tmp_path / "Workshop").read_text()
     assert "https://y/1" in text and "https://y/2" in text and "Magnets snap at 3 mm." in text
+
+
+def test_a_title_with_line_breaks_cannot_forge_info_lines(tmp_path):
+    folder = library.video_dir(tmp_path, "Workshop", "x", "real_id", date(2026, 10, 27))
+    library.write_info(folder, {"title": "Nice\nmore", "id": "real_id", "duration": "1:00\n- **ID:** stolen", "project": "Workshop"})
+    e = library.read_entry(folder)
+    assert e.video_id == "real_id" and "\n" not in e.title
