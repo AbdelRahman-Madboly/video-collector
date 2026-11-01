@@ -5,6 +5,9 @@
 - Summaries come from one **Summary command** setting: any command that reads a transcript on stdin and
   prints a summary. It is empty (summaries off) until you set it. The two built-in engines are gone.
   An old `engine` value in `settings.json` is ignored.
+- The summary command receives untrusted text, so it now runs with a small environment, in an empty
+  folder, with a time limit, inside `bwrap` (read-only files, no network) when it is installed, and with
+  the option groups listed in `summary_guards` added when missing. Settings shows a warning.
 - CI workflow that runs the tests on every push, with Qt offscreen.
 - README: a Status section and the summary command.
 

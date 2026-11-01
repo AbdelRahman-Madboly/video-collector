@@ -50,14 +50,14 @@ def summary_ok(cmd, **kw):
     return subprocess.CompletedProcess(cmd, 0, "## TL;DR\nCoins print at 0.2 mm.\n", "")
 
 
-def job(tmp_path, preset, summary_command="summarize-tool"):
+def job(tmp_path, preset, summary="summarize-tool"):
     return jobs.Job(url="https://www.youtube.com/watch?v=abc123", project="Workshop", parts=set(jobs.PRESETS[preset]),
-                    quality="720", format_selector=None, library=tmp_path / "lib", langs="en.*,ar.*", summary_command=summary_command)
+                    quality="720", format_selector=None, library=tmp_path / "lib", langs="en.*,ar.*", summary=summary)
 
 
-def run(tmp_path, preset, dl=None, summary=summary_ok, subs=True, summary_command="summarize-tool"):
+def run(tmp_path, preset, dl=None, summary=summary_ok, subs=True, summary_options="summarize-tool"):
     dl = dl or FakeYtDlp(subs)
-    entry = jobs.run(job(tmp_path, preset, summary_command), on_line=lambda l: None, fetch=lambda url: meta(subs),
+    entry = jobs.run(job(tmp_path, preset, summary_options), on_line=lambda l: None, fetch=lambda url: meta(subs),
                      download=dl, summary_runner=summary, today=TODAY)
     return entry, dl
 

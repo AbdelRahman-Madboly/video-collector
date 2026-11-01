@@ -30,8 +30,10 @@ docs/design/      the design and plan for version 2
 - An empty subtitle file means no transcript, and no summary is asked for.
 - Values from the internet (titles, channels) are kept to one line in info.md.
 - The transcript is untrusted text: the summary command is split like a shell line but never run
-  through a shell, gets the prompt on stdin, runs in an empty temporary folder with a 10 minute limit,
-  and only its stdout is kept. An empty command turns summaries off.
+  through a shell, gets the prompt on stdin only, gets the guard options listed for its program,
+  runs with a small environment in an empty temporary folder with a 10 minute limit, and inside `bwrap`
+  (read-only file system, no network by default) when it is installed. Only its stdout is kept. An empty
+  command turns summaries off.
 
 ## Shared data
 

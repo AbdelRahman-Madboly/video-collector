@@ -38,11 +38,12 @@ def stop_all() -> None:
 
 
 def run(cmd: list[str], input: str | None = None, capture_output: bool = True, text: bool = True,
-        timeout: float | None = None, cwd: str | None = None) -> subprocess.CompletedProcess:
+        timeout: float | None = None, cwd: str | None = None,
+        env: dict | None = None) -> subprocess.CompletedProcess:
     """subprocess.run, but stoppable by stop_all()."""
     pipe = subprocess.PIPE if capture_output else None
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE if input is not None else None, stdout=pipe, stderr=pipe,
-                         text=text, cwd=cwd)
+                         text=text, cwd=cwd, env=env)
     _track(p)
     try:
         out, err = p.communicate(input=input, timeout=timeout)

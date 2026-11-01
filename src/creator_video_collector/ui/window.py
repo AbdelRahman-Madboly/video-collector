@@ -375,7 +375,7 @@ class DownloadPage(_Page):
         for url in urls:
             self._jobs.append(jobs.Job(url=url, project=self.project.currentText().strip(), parts=set(parts),
                                        quality=quality, format_selector=fmt, library=self.target_library(),
-                                       langs=s.subtitle_langs, summary_command=s.summary_command))
+                                       langs=s.subtitle_langs, summary=settings.summary_options(s)))
             QListWidgetItem(f"{url} · Waiting", self.queue)
         self.links.clear()
         self.preview.hide()
@@ -553,7 +553,7 @@ class LibraryPage(_Page):
             return
         self.state.setText("Writing the summary…")
         self.btn_make.setEnabled(False)
-        command, runner = self.win.settings.summary_command, self.win.runners["summary"]
+        command, runner = settings.summary_options(self.win.settings), self.win.runners["summary"]
         self.win.run(lambda sig: jobs.make_summary(e.folder, command, runner), self._made)
 
     def _made(self, ok) -> None:
@@ -590,14 +590,26 @@ class SettingsPage(_Page):
         self.langs = QLineEdit(s.subtitle_langs)
         self.summary_command = QLineEdit(s.summary_command)
         self.summary_command.setPlaceholderText("Off. A command that reads a transcript on stdin and prints a summary")
+        self.summary_sandbox = QCheckBox("Run it in a sandbox (bwrap): files read-only, no network")
+        self.summary_sandbox.setChecked(s.summary_sandbox)
+        self.summary_network = QCheckBox("Allow network inside the sandbox")
+        self.summary_network.setChecked(s.summary_network)
+        summary_box = QVBoxLayout()
+        for x in (self.summary_command, self.summary_sandbox, self.summary_network):
+            summary_box.addWidget(x)
+        warning = _label("Warning: the summary command receives the video's transcript, which is untrusted text "
+                         "from the internet and can contain instructions. Use a command that cannot run tools, "
+                         "edit files or browse, or list the options that turn those off under summary_guards "
+                         "in settings.json.", "warn", wrap=True)
+        summary_box.addWidget(warning)
         self.dark = QCheckBox("Dark")
         self.dark.setChecked(s.dark)
         rows = [("Library folder", lib_row), ("Default project", self.project), ("Default download", self.preset),
                 ("Video quality", self.quality), ("Subtitle languages", self.langs),
-                ("Summary command", self.summary_command), ("Look", self.dark)]
+                ("Summary command", summary_box), ("Look", self.dark)]
         for i, (name, w) in enumerate(rows):
             g.addWidget(_label(name, "h2"), i, 0)
-            (g.addLayout if isinstance(w, QHBoxLayout) else g.addWidget)(w, i, 1)
+            (g.addLayout if isinstance(w, (QHBoxLayout, QVBoxLayout)) else g.addWidget)(w, i, 1)
         g.addWidget(_label("Videos go to <library>/<project>/<date> <title>/. The summary command gets the prompt "
                            "and transcript on stdin, runs in an empty folder and prints Markdown.", "muted", wrap=True), len(rows), 0, 1, 2)
         g.setColumnStretch(1, 1)
@@ -634,7 +646,8 @@ class SettingsPage(_Page):
         s = replace(self.win.settings, library=Path(self.library.text()).expanduser(),
                     default_project=self.project.text().strip(), preset=self.preset.currentData(),
                     quality=self.quality.currentText(), subtitle_langs=self.langs.text().strip() or settings.Settings().subtitle_langs,
-                    summary_command=self.summary_command.text().strip(), dark=self.dark.isChecked())
+                    summary_command=self.summary_command.text().strip(), dark=self.dark.isChecked(),
+                    summary_sandbox=self.summary_sandbox.isChecked(), summary_network=self.summary_network.isChecked())
         settings.save(s)
         self.win.apply_settings(s)
         self.saved.setText("Saved.")

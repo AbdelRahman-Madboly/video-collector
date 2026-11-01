@@ -20,3 +20,15 @@ def test_a_corrupt_file_gives_defaults():
     settings.config_path().parent.mkdir(parents=True, exist_ok=True)
     settings.config_path().write_text("{nope")
     assert settings.load().summary_command == ""
+
+
+def test_summary_safety_settings_default_to_sandboxed_and_offline_and_bad_values_are_dropped():
+    s = settings.Settings()
+    assert (s.summary_command, s.summary_sandbox, s.summary_network, s.summary_env, s.summary_guards) == (
+        "", True, False, [], {})
+    settings.config_path().parent.mkdir(parents=True, exist_ok=True)
+    settings.config_path().write_text('{"summary_guards": ["nope"], "summary_env": "X", "summary_command": "t"}')
+    loaded = settings.load()
+    assert (loaded.summary_guards, loaded.summary_env, loaded.summary_command) == ({}, [], "t")
+    o = settings.summary_options(settings.Settings(summary_command="t", summary_guards={"t": ["--safe"]}))
+    assert (o.command, o.guards, o.sandbox, o.network) == ("t", {"t": ["--safe"]}, True, False)

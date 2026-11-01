@@ -4,7 +4,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from creator_video_collector import library, settings
 from creator_video_collector.downloader import VideoMetadata
@@ -83,9 +83,13 @@ def test_settings_are_saved(tmp_path):
     p = w.page("Settings")
     p.library.setText(str(tmp_path / "mine"))
     p.summary_command.setText("  my-summarizer --no-tools  ")
+    p.summary_network.setChecked(True)
     p.save()
     s = settings.load()
     assert (s.library, s.summary_command) == (tmp_path / "mine", "my-summarizer --no-tools")
+    assert s.summary_sandbox and s.summary_network
+    texts = " ".join(l.text() for l in p.findChildren(QLabel))
+    assert "untrusted text" in texts
 
 
 def test_library_lists_videos_and_makes_a_summary(tmp_path):

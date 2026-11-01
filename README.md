@@ -6,7 +6,7 @@ thumbnail and an optional summary, in one folder per video, grouped by project. 
 
 ## Status
 
-2.0.0 plus unreleased changes (see [CHANGELOG.md](CHANGELOG.md)). All 59 tests pass and run in CI; a first
+2.0.0 plus unreleased changes (see [CHANGELOG.md](CHANGELOG.md)). All tests pass and run in CI; a first
 check on a few real videos is still open.
 
 ## What it does
@@ -48,16 +48,35 @@ Summaries are off until you set **Summary command** in Settings. The summary com
 reads a transcript on stdin and prints a summary on stdout, for example a language model's command-line
 tool. The collector sends it a prompt that asks for four Markdown sections, followed by the transcript.
 
+**Warning:** the transcript is untrusted text from the internet and can contain instructions aimed at
+the tool that reads it. Use a command that cannot run tools, edit files or browse, or make sure those
+features are turned off. The collector limits what the command can do:
+
+- The prompt and transcript go to the command on stdin only, never as an argument.
 - The command line is split like a shell line, but no shell runs it.
-- It runs in an empty temporary folder with a 10 minute limit. The transcript is text from the internet,
-  so if your tool has options to turn off its own tools, file access or web access, add them to the command.
-- Long transcripts are summarized in parts, then together.
-- A failure keeps the download and is noted in `info.md`.
+- It runs in an empty temporary folder, with a 10 minute limit, and with a small environment: `PATH`,
+  `HOME`, user, locale and XDG folder variables only. Add other variable names (for example the one that
+  holds an API key) to `summary_env` in `settings.json`.
+- When `bwrap` (bubblewrap) is installed and **Run it in a sandbox** is on (the default), the command runs
+  with the whole file system read-only, a private `/tmp` and no network. Tick **Allow network inside the
+  sandbox** for a tool that needs to reach an online service; it can still read your files then, so keep
+  its tools turned off. Without `bwrap` the command runs unsandboxed.
+- `summary_guards` in `settings.json` maps a program name to the option groups it must always get. The
+  collector adds any group that is missing from the command, so a tool that can use tools never runs
+  without the options that turn them off:
+
+  ```json
+  "summary_guards": {"my-assistant": ["--no-tools", "--sandbox read-only"]}
+  ```
+
+Long transcripts are summarized in parts, then together. A failure keeps the download and is noted in
+`info.md`.
 
 ## What it does not do
 
 - No speech-to-text: a video without subtitles gets no transcript and no summary.
 - It does not write summaries by itself: you bring the summary command.
+- It cannot recognise every tool that can act on what it reads: the guards are the ones you list.
 - Downloads saved to a one-off folder (**Change…**) do not show on the Library page, which reads the
   library folder from Settings.
 - It does not update yt-dlp by itself; press **Update yt-dlp** in Settings when sites start failing.
