@@ -24,12 +24,14 @@ class Settings:
     summary_network: bool = False    # let the sandboxed summary command reach the network
     summary_env: list = field(default_factory=list)      # extra environment variable names to pass on
     summary_guards: dict = field(default_factory=dict)   # program name -> option groups it always gets
+    summary_readonly: list = field(default_factory=list)  # extra paths the sandboxed command may read
 
 
 def summary_options(s: Settings):
     from .summarize import Options
     return Options(command=s.summary_command, guards=dict(s.summary_guards), sandbox=bool(s.summary_sandbox),
-                   network=bool(s.summary_network), env=tuple(str(x) for x in s.summary_env))
+                   network=bool(s.summary_network), env=tuple(str(x) for x in s.summary_env),
+                   readonly=tuple(str(x) for x in s.summary_readonly))
 
 
 def config_path() -> Path:
@@ -49,8 +51,9 @@ def load() -> Settings:
     if not isinstance(values.get("summary_guards", {}), dict) or not all(
             isinstance(v, list) for v in values.get("summary_guards", {}).values()):
         values.pop("summary_guards")
-    if not isinstance(values.get("summary_env", []), list):
-        values.pop("summary_env")
+    for key in ("summary_env", "summary_readonly"):
+        if not isinstance(values.get(key, []), list):
+            values.pop(key)
     try:
         return Settings(**values)
     except TypeError:

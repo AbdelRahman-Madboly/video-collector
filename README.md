@@ -57,10 +57,15 @@ features are turned off. The collector limits what the command can do:
 - It runs in an empty temporary folder, with a 10 minute limit, and with a small environment: `PATH`,
   `HOME`, user, locale and XDG folder variables only. Add other variable names (for example the one that
   holds an API key) to `summary_env` in `settings.json`.
-- When `bwrap` (bubblewrap) is installed and **Run it in a sandbox** is on (the default), the command runs
-  with the whole file system read-only, a private `/tmp` and no network. Tick **Allow network inside the
-  sandbox** for a tool that needs to reach an online service; it can still read your files then, so keep
-  its tools turned off. Without `bwrap` the command runs unsandboxed.
+- With **Run it in a sandbox** on (the default) the command runs inside `bwrap` (bubblewrap,
+  `sudo apt install bubblewrap`): only the system folders (`/usr`, `/etc`, `/lib`, `/bin`, ...) are
+  visible and read-only; `/tmp`, `/run` and your home folder are empty and private; the job's empty
+  folder is the only writable place; there is no network. If `bwrap` is missing, summaries fail instead
+  of running unconfined; Settings shows whether it was found. Turn the sandbox off only for a command you
+  trust with your files.
+- A tool that needs its own config or login files can read them only when you list those paths in
+  `summary_readonly` in `settings.json`, for example `"summary_readonly": ["~/.config/my-assistant"]`.
+  Tick **Allow network inside the sandbox** for a tool that has to reach an online service.
 - `summary_guards` in `settings.json` maps a program name to the option groups it must always get. The
   collector adds any group that is missing from the command, so a tool that can use tools never runs
   without the options that turn them off:
@@ -85,10 +90,11 @@ Long transcripts are summarized in parts, then together. A failure keeps the dow
 
 ## Install
 
-Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `yt-dlp` and `ffmpeg`.
+Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `yt-dlp` and `ffmpeg`, and `bwrap` for sandboxed
+summaries.
 
 ```sh
-sudo apt install ffmpeg
+sudo apt install ffmpeg bubblewrap
 ./install_youtube_visual_collector.sh       # uv environment, launcher, menu entry
 ```
 

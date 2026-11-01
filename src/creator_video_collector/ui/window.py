@@ -590,7 +590,7 @@ class SettingsPage(_Page):
         self.langs = QLineEdit(s.subtitle_langs)
         self.summary_command = QLineEdit(s.summary_command)
         self.summary_command.setPlaceholderText("Off. A command that reads a transcript on stdin and prints a summary")
-        self.summary_sandbox = QCheckBox("Run it in a sandbox (bwrap): files read-only, no network")
+        self.summary_sandbox = QCheckBox("Run it in a sandbox (bwrap): no home folder, no network")
         self.summary_sandbox.setChecked(s.summary_sandbox)
         self.summary_network = QCheckBox("Allow network inside the sandbox")
         self.summary_network.setChecked(s.summary_network)
@@ -602,6 +602,8 @@ class SettingsPage(_Page):
                          "edit files or browse, or list the options that turn those off under summary_guards "
                          "in settings.json.", "warn", wrap=True)
         summary_box.addWidget(warning)
+        self.sandbox_state = _label(summarize.sandbox_status(), "muted", wrap=True)
+        summary_box.addWidget(self.sandbox_state)
         self.dark = QCheckBox("Dark")
         self.dark.setChecked(s.dark)
         rows = [("Library folder", lib_row), ("Default project", self.project), ("Default download", self.preset),

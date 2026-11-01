@@ -6,8 +6,10 @@
   prints a summary. It is empty (summaries off) until you set it. The two built-in engines are gone.
   An old `engine` value in `settings.json` is ignored.
 - The summary command receives untrusted text, so it now runs with a small environment, in an empty
-  folder, with a time limit, inside `bwrap` (read-only files, no network) when it is installed, and with
-  the option groups listed in `summary_guards` added when missing. Settings shows a warning.
+  folder, with a time limit, inside `bwrap` (system folders read-only; home, `/tmp` and `/run` empty;
+  no network), and with the option groups listed in `summary_guards` added when missing. With the
+  sandbox on and no `bwrap` the summary fails instead of running unconfined. Extra read-only paths
+  come only from `summary_readonly`. Settings shows a warning and whether `bwrap` was found.
 - CI workflow that runs the tests on every push, with Qt offscreen.
 - README: a Status section and the summary command.
 

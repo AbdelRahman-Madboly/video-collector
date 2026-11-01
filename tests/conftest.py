@@ -11,4 +11,4 @@ def _private_paths(tmp_path, monkeypatch):
     monkeypatch.setenv("VIDEO_COLLECTOR_CONFIG", str(tmp_path / "config" / "settings.json"))
     monkeypatch.setenv("MYTOOLS_SHARED", str(tmp_path / "shared-data"))
     from creator_video_collector import summarize
-    monkeypatch.setattr(summarize, "_which", lambda name: None)   # no bwrap: tests see the plain command
+    monkeypatch.setattr(summarize, "_which", lambda name: f"/usr/bin/{name}")   # bwrap and every program "installed"

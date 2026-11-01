@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -26,7 +27,7 @@ def test_the_command_gets_the_prompt_on_stdin_in_an_empty_folder():
     out = summarize.summarize("text", "T", "P", "my-tool --no-tools", runner=runner)
     assert out.startswith("## TL;DR")
     cmd, stdin, contents = seen[0]
-    assert cmd == ["my-tool", "--no-tools"] and "text" in stdin and contents == []
+    assert cmd[cmd.index("--") + 1:] == ["my-tool", "--no-tools"] and "text" in stdin and contents == []
 
 
 def test_a_long_transcript_is_summarized_in_parts_then_together():
@@ -68,7 +69,7 @@ def test_the_transcript_goes_on_stdin_only_never_as_an_argument():
     summarize.summarize(secret, "T", "P", "my-tool --no-tools", runner=_recording(seen))
     cmd, kw = seen[0]
     assert secret in kw["input"] and not any(secret in a for a in cmd)
-    assert cmd == ["my-tool", "--no-tools"]
+    assert cmd[cmd.index("--") + 1:] == ["my-tool", "--no-tools"]
 
 
 def test_guard_options_are_added_when_missing_and_not_twice():
@@ -101,32 +102,58 @@ def test_a_command_that_runs_too_long_is_stopped_with_a_clear_error():
         summarize.summarize("t", "T", "P", "my-tool", runner=slow)
 
 
-def test_with_bwrap_the_command_runs_read_only_without_network_unless_allowed():
+def _writable_binds(cmd):
+    return [cmd[i + 1] for i, a in enumerate(cmd) if a in ("--bind", "--bind-try")]
+
+
+def test_the_sandbox_shows_only_system_folders_and_the_job_folder_is_the_only_writable_bind():
     which = lambda name: "/usr/bin/" + name
     seen = []
     summarize.summarize("t", "T", "P", summarize.Options(command="my-tool -x"), runner=_recording(seen), which=which)
     cmd, kw = seen[0]
     assert cmd[0] == "bwrap" and cmd[-3:] == ["--", "my-tool", "-x"]
-    assert cmd[1:4] == ["--ro-bind", "/", "/"] and "--unshare-all" in cmd and "--share-net" not in cmd
-    assert cmd[cmd.index("--chdir") + 1] == kw["cwd"]
-    net = summarize.plan(summarize.Options(command="my-tool", network=True), "/tmp/x", which=which)
-    assert "--share-net" in net
-    off = summarize.plan(summarize.Options(command="my-tool", sandbox=False), "/tmp/x", which=which)
-    assert off == ["my-tool"]
+    ro = [cmd[i + 1] for i, a in enumerate(cmd) if a in ("--ro-bind", "--ro-bind-try")]
+    assert "/" not in ro and set(ro) <= set(summarize.SYSTEM_DIRS)
+    assert _writable_binds(cmd) == [kw["cwd"]] and cmd[cmd.index("--chdir") + 1] == kw["cwd"]
+    tmpfs = [cmd[i + 1] for i, a in enumerate(cmd) if a == "--tmpfs"]
+    assert {"/tmp", "/run", "/var/run", str(Path.home())} <= set(tmpfs)
+    assert "--unshare-all" in cmd and "--share-net" not in cmd
+    assert "--die-with-parent" in cmd and "--new-session" in cmd
 
 
-def test_without_bwrap_or_with_a_missing_program_it_still_fails_cleanly():
-    assert summarize.plan("my-tool", "/tmp/x", which=lambda name: None) == ["my-tool"]
+def test_extra_read_only_paths_and_network_are_added_only_when_asked():
+    which = lambda name: "/usr/bin/" + name
+    cmd = summarize.plan(summarize.Options(command="my-tool", network=True, readonly=("~/.config/my-tool",)),
+                         "/tmp/job", which=which)
+    conf = str(Path.home() / ".config" / "my-tool")
+    i = cmd.index(conf)
+    assert cmd[i - 1] == "--ro-bind-try" and cmd.index("--tmpfs") < i      # bound over the empty home
+    assert "--share-net" in cmd and _writable_binds(cmd) == ["/tmp/job"]
+    assert summarize.plan(summarize.Options(command="my-tool", sandbox=False), "/tmp/job", which=which) == ["my-tool"]
+
+
+def test_with_the_sandbox_on_and_no_bwrap_it_fails_closed():
+    nothing = lambda name: None
+    with pytest.raises(summarize.SummaryError, match="bwrap is not installed"):
+        summarize.summarize("t", "T", "P", "my-tool", runner=_recording([]), which=nothing)
+    assert "not installed" in summarize.sandbox_status(which=nothing)
+    assert "/usr/bin/bwrap" in summarize.sandbox_status(which=lambda name: "/usr/bin/bwrap")
+
+
+def test_a_missing_program_inside_the_sandbox_is_reported_by_name():
     only_bwrap = lambda name: "/usr/bin/bwrap" if name == "bwrap" else None
     with pytest.raises(summarize.SummaryError, match="my-tool is not installed"):
         summarize.summarize("t", "T", "P", "my-tool", runner=_recording([]), which=only_bwrap)
 
 
 @pytest.mark.skipif(__import__("shutil").which("bwrap") is None, reason="bwrap is not installed")
-def test_real_bwrap_keeps_home_read_only_and_cuts_the_network():
+def test_real_bwrap_hides_home_and_run_keeps_system_read_only_and_cuts_the_network():
     import shutil
-    script = ("cat >/dev/null; (touch \"$HOME/.collector-probe\" 2>/dev/null && echo home-writable) || echo home-read-only; "
+    script = ("cat >/dev/null; [ -z \"$(ls -A \"$HOME\")\" ] && echo home-empty; "
+              "[ -z \"$(ls -A /run)\" ] && echo run-empty; "
+              "(touch /usr/.collector-probe 2>/dev/null && echo usr-writable) || echo usr-read-only; "
               "(exec 3<>/dev/tcp/1.1.1.1/53) 2>/dev/null && echo net-on || echo net-off")
     out = summarize.summarize("t", "T", "P", summarize.Options(command=f"bash -c '{script}'"),
                               runner=subprocess.run, which=shutil.which)
-    assert "home-read-only" in out and "net-off" in out
+    for word in ("home-empty", "run-empty", "usr-read-only", "net-off"):
+        assert word in out, out

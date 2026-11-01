@@ -12,8 +12,11 @@ reads it. So the command:
   (the owner lists there the options that turn off a tool's own tools, file access or web access);
 - runs with a small environment (only the variables listed below plus `summary_env`), in an empty
   temporary folder, with a 10 minute limit;
-- runs inside `bwrap` when it is installed and the sandbox setting is on: the whole file system
-  read-only, a private /tmp, and no network unless the network setting allows it.
+- runs inside `bwrap` when the sandbox setting is on (the default): only the system folders are visible,
+  read-only; /tmp, /run and the home folder are empty and private; the job folder is the only writable
+  place; there is no network unless the network setting allows it. Extra read-only paths (for example
+  the tool's own config folder) are added only when listed in `summary_readonly`. With the sandbox on and
+  no `bwrap`, the summary fails instead of running unconfined.
 """
 from __future__ import annotations
 
@@ -40,6 +43,11 @@ class Options:
     sandbox: bool = True                           # wrap in bwrap when it is installed
     network: bool = False                          # let the sandboxed command use the network
     env: tuple = ()                                # extra environment variable names to pass on
+    readonly: tuple = ()                           # extra paths the sandboxed command may read
+
+
+SYSTEM_DIRS = ("/usr", "/etc", "/lib", "/lib64", "/lib32", "/bin", "/sbin")
+NO_BWRAP = "bwrap is not installed; turn off the sandbox in Settings to run without it"
 
 
 class SummaryError(Exception):
@@ -116,22 +124,39 @@ def environment(extra=(), source=None) -> dict:
     return {k: source[k] for k in (*BASE_ENV, *extra) if k in source}
 
 
-def sandboxed(argv: list[str], folder: str, network: bool) -> list[str]:
-    """argv inside bwrap: everything read-only, a private /tmp with only the empty work folder writable."""
-    wrap = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
-            "--bind", folder, folder, "--chdir", folder, "--unshare-all"]
+def sandboxed(argv: list[str], folder: str, network: bool, readonly=(), home: str | None = None) -> list[str]:
+    """argv inside bwrap: system folders read-only, empty private /tmp, /run and home, the job folder
+    as the only writable bind, extra read-only paths only when listed, no network unless allowed."""
+    home = home or os.path.expanduser("~")
+    wrap = ["bwrap"]
+    for d in SYSTEM_DIRS:
+        wrap += ["--ro-bind-try", d, d]
+    wrap += ["--dev", "/dev", "--proc", "/proc",
+             "--tmpfs", "/tmp", "--tmpfs", "/run", "--tmpfs", "/var/run", "--tmpfs", home]
+    for p in readonly:
+        p = os.path.expanduser(str(p))
+        wrap += ["--ro-bind-try", p, p]
+    wrap += ["--bind", folder, folder, "--chdir", folder, "--unshare-all"]
     if network:
         wrap.append("--share-net")
     return wrap + ["--die-with-parent", "--new-session", "--"] + argv
+
+
+def sandbox_status(which=None) -> str:
+    """One line for Settings: whether the sandbox can run on this machine."""
+    found = (which or _which)("bwrap")
+    return f"Sandbox: bwrap found at {found}." if found else f"Sandbox: {NO_BWRAP}."
 
 
 def plan(opts, folder: str, which=None) -> list[str]:
     """The exact argv that will run for these options in this folder."""
     o, which = _options(opts), which or _which
     argv = guarded(command(o.command), o.guards)
-    if o.sandbox and which("bwrap"):
-        return sandboxed(argv, folder, o.network)
-    return argv
+    if not o.sandbox:
+        return argv
+    if not which("bwrap"):
+        raise SummaryError(NO_BWRAP)
+    return sandboxed(argv, folder, o.network, o.readonly)
 
 
 def _ask(prompt: str, o: Options, runner, which) -> str:

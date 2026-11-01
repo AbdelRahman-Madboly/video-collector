@@ -32,8 +32,9 @@ docs/design/      the design and plan for version 2
 - The transcript is untrusted text: the summary command is split like a shell line but never run
   through a shell, gets the prompt on stdin only, gets the guard options listed for its program,
   runs with a small environment in an empty temporary folder with a 10 minute limit, and inside `bwrap`
-  (read-only file system, no network by default) when it is installed. Only its stdout is kept. An empty
-  command turns summaries off.
+  with only the system folders visible read-only, empty private `/tmp`, `/run` and home, the job folder
+  as the only writable bind and no network by default. With the sandbox on and no `bwrap` it fails
+  closed. Only its stdout is kept. An empty command turns summaries off.
 
 ## Shared data
 
