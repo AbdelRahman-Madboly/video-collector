@@ -36,7 +36,7 @@ class Job:
     format_selector: str | None
     library: Path
     langs: str
-    engine: str
+    summary_command: str
 
 
 def _missing(folder: Path, parts: set) -> set:
@@ -106,7 +106,7 @@ def publish(lib: Path) -> None:
     tmp.replace(out)
 
 
-def make_summary(folder: Path, engine: str, runner=None) -> bool:
+def make_summary(folder: Path, summary_command: str, runner=None) -> bool:
     """Write summary.md from transcript.txt; on failure keep everything and note why in info.md."""
     entry = library.read_entry(folder)
     transcript = (folder / "transcript.txt")
@@ -114,13 +114,13 @@ def make_summary(folder: Path, engine: str, runner=None) -> bool:
         return False
     from . import procs
     try:
-        text = summarize.summarize(transcript.read_text(), entry.title, entry.project, engine,
+        text = summarize.summarize(transcript.read_text(), entry.title, entry.project, summary_command,
                                    runner=runner or procs.run)
     except summarize.SummaryError as e:
         library.set_summary_state(folder, f"failed, {e}")
         return False
     (folder / "summary.md").write_text(f"# {entry.title}\n\n{text.strip()}\n")
-    library.set_summary_state(folder, f"done ({engine})")
+    library.set_summary_state(folder, f"done ({Path(summarize.command(summary_command)[0]).name})")
     library.write_index(folder.parent)
     return True
 
@@ -190,7 +190,7 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
     if "summary" in parts and not (folder / "summary.md").exists():
         if (folder / "transcript.txt").exists():
             on_line("Writing the summary…")
-            make_summary(folder, job.engine, summary_runner)
+            make_summary(folder, job.summary_command, summary_runner)
         else:
             library.set_summary_state(folder, "none, no transcript")
     library.write_index(folder.parent)

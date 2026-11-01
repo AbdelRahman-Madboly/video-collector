@@ -1,5 +1,9 @@
 # Creator Video Collector 2 Implementation Plan
 
+> Note, 2026-11-02: the two built-in summary engines described here were replaced by one
+> **Summary command** setting: any command that reads a transcript on stdin and prints a summary.
+> See the README.
+
 **Goal:** A PySide6 collector that downloads videos into one folder per video grouped by project, with clean transcripts, thumbnails and command-line summaries, a library page and settings.
 
 **Architecture:** Pure modules (`settings`, `library`, `summarize`, `jobs`) hold the logic and take injectable runners, so tests never call yt-dlp or the summary tool. The window (`ui/`) only drives them on a worker thread. `downloader.py` and `subtitles.py` stay as the yt-dlp and caption core.

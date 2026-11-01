@@ -1,15 +1,19 @@
-"""Summaries of a transcript, written by a command-line tool.
+"""Summaries of a transcript, written by a command the owner chooses in Settings.
 
-The transcript is untrusted text from the internet, so the engine gets no tools at all (no shell, no
-files, no web, no MCP servers) and runs in an empty temporary folder: it can only read the prompt and
-write the summary.
+The summary command is any command that reads a transcript on stdin and prints a summary on stdout,
+for example a language model's command-line tool. It is split like a shell line (no shell runs it); an
+empty command means summaries are off.
+
+The transcript is untrusted text from the internet, so the command runs in an empty temporary folder with
+a time limit. If the tool can be told to run with no tools, no file access and no web access, put those
+options in the command: then it can only read the prompt and write the summary.
 """
 from __future__ import annotations
 
+import shlex
 import subprocess
 import tempfile
 
-ENGINES = ("cli-a", "cli-b", "off")
 LIMIT = 120_000
 TIMEOUT = 600
 
@@ -44,19 +48,22 @@ Transcript:
 """
 
 
-def command(engine: str) -> list[str]:
-    if engine == "cli-a":
-        return ["cli-a", "-p", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
-                "--setting-sources", "user"]
-    if engine == "cli-b":
-        return ["cli-b", "exec", "--skip-git-repo-check", "--sandbox", "read-only",
-                "--disable", "shell_tool", "--disable", "unified_exec",
-                "-c", "mcp_servers={}", "-c", "tools.web_search=false", "-"]
-    raise SummaryError("Summaries are off")
+def command(summary_command: str) -> list[str]:
+    """The summary command as an argument list; an empty one means summaries are off."""
+    try:
+        argv = shlex.split(summary_command or "")
+    except ValueError as e:
+        raise SummaryError(f"The summary command cannot be read: {e}") from None
+    if not argv:
+        raise SummaryError("Summaries are off")
+    return argv
 
 
-def _ask(prompt: str, engine: str, runner) -> str:
-    cmd = command(engine)
+def enabled(summary_command: str) -> bool:
+    return bool((summary_command or "").strip())
+
+
+def _ask(prompt: str, cmd: list[str], runner) -> str:
     try:
         with tempfile.TemporaryDirectory(prefix="collector-summary-") as empty:
             out = runner(cmd, input=prompt, capture_output=True, text=True, timeout=TIMEOUT, cwd=empty)
@@ -75,16 +82,15 @@ def _ask(prompt: str, engine: str, runner) -> str:
     return text
 
 
-def summarize(transcript: str, title: str, project: str, engine: str,
+def summarize(transcript: str, title: str, project: str, summary_command: str,
               runner=subprocess.run, limit: int = LIMIT) -> str:
     """Markdown summary; a long transcript is summarized in parts, then the parts together."""
-    if engine not in ENGINES or engine == "off":
-        raise SummaryError("Summaries are off")
+    cmd = command(summary_command)
     if len(transcript) <= limit:
-        return _ask(build_prompt(transcript, title, project), engine, runner)
+        return _ask(build_prompt(transcript, title, project), cmd, runner)
     parts = [transcript[i:i + limit] for i in range(0, len(transcript), limit)]
-    notes = [_ask(build_prompt(p, f"{title} (part {n} of {len(parts)})", project), engine, runner)
+    notes = [_ask(build_prompt(p, f"{title} (part {n} of {len(parts)})", project), cmd, runner)
              for n, p in enumerate(parts, 1)]
     joined = "\n\n".join(f"### Part {n}\n{t}" for n, t in enumerate(notes, 1))
     return _ask(build_prompt(joined, f"{title}: combine these part summaries into one", project)
-                .replace("Transcript:", "Summaries of the parts, to merge into one:"), engine, runner)
+                .replace("Transcript:", "Summaries of the parts, to merge into one:"), cmd, runner)

@@ -50,14 +50,14 @@ def summary_ok(cmd, **kw):
     return subprocess.CompletedProcess(cmd, 0, "## TL;DR\nCoins print at 0.2 mm.\n", "")
 
 
-def job(tmp_path, preset, engine="cli-a"):
+def job(tmp_path, preset, summary_command="summarize-tool"):
     return jobs.Job(url="https://www.youtube.com/watch?v=abc123", project="Workshop", parts=set(jobs.PRESETS[preset]),
-                    quality="720", format_selector=None, library=tmp_path / "lib", langs="en.*,ar.*", engine=engine)
+                    quality="720", format_selector=None, library=tmp_path / "lib", langs="en.*,ar.*", summary_command=summary_command)
 
 
-def run(tmp_path, preset, dl=None, summary=summary_ok, subs=True, engine="cli-a"):
+def run(tmp_path, preset, dl=None, summary=summary_ok, subs=True, summary_command="summarize-tool"):
     dl = dl or FakeYtDlp(subs)
-    entry = jobs.run(job(tmp_path, preset, engine), on_line=lambda l: None, fetch=lambda url: meta(subs),
+    entry = jobs.run(job(tmp_path, preset, summary_command), on_line=lambda l: None, fetch=lambda url: meta(subs),
                      download=dl, summary_runner=summary, today=TODAY)
     return entry, dl
 
@@ -74,7 +74,7 @@ def test_watch_preset_makes_a_tidy_folder(tmp_path):
 def test_research_preset_has_no_video_and_a_summary(tmp_path):
     e, dl = run(tmp_path, "research")
     assert not e.has_video and e.has_summary and "--skip-download" in dl.calls[0]
-    assert library.read_entry(e.folder).summary_state.startswith("done")
+    assert library.read_entry(e.folder).summary_state == "done (summarize-tool)"
     assert "Coins print at 0.2 mm." in (tmp_path / "lib" / "Workshop" / "INDEX.md").read_text()
 
 
@@ -104,10 +104,10 @@ def test_no_subtitles_keeps_the_video_and_skips_the_summary(tmp_path):
 
 def test_a_failed_summary_keeps_the_files_and_says_why(tmp_path):
     def gone(cmd, **kw):
-        raise FileNotFoundError("cli-a")
+        raise FileNotFoundError("summarize-tool")
     e, _ = run(tmp_path, "research", summary=gone)
     assert e.has_transcript and not e.has_summary
-    assert library.read_entry(e.folder).summary_state == "failed, cli-a is not installed"
+    assert library.read_entry(e.folder).summary_state == "failed, summarize-tool is not installed"
 
 
 def test_a_failed_download_raises_but_keeps_what_arrived(tmp_path):
@@ -243,5 +243,5 @@ def test_a_summary_is_not_asked_for_an_empty_transcript(tmp_path):
     e, _ = run(tmp_path, "watch")
     (e.folder / "transcript.txt").write_text("   \n")
     called = []
-    assert jobs.make_summary(e.folder, "cli-a", runner=lambda c, **k: called.append(c)) is False
+    assert jobs.make_summary(e.folder, "summarize-tool", runner=lambda c, **k: called.append(c)) is False
     assert not called

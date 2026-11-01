@@ -1,7 +1,7 @@
 # Architecture
 
 A PySide6 window on top of small modules that hold all the logic. The modules take their programs
-(yt-dlp, the summary engine) as injectable runners, so the tests never start a real one.
+(yt-dlp, the summary command) as injectable runners, so the tests never start a real one.
 
 ```text
 src/creator_video_collector/
@@ -11,7 +11,7 @@ src/creator_video_collector/
   downloader.py   yt-dlp metadata parsing and the per-video yt-dlp command
   subtitles.py    VTT/SRT cleanup into a plain transcript
   library.py      one folder per video, grouped by project; info.md and INDEX.md
-  summarize.py    summary prompt and the engine command, run with no tools in an empty folder
+  summarize.py    summary prompt and the summary command from Settings, run in an empty folder
   jobs.py         one link becomes one library folder; publishes the Tools Hub summary
   procs.py        every child process goes through here so closing the window can stop them
   ui/window.py    Download, Library and Settings pages; jobs run on a worker thread
@@ -29,8 +29,9 @@ docs/design/      the design and plan for version 2
 - info.md is written before the download starts, so a failed download still leaves a readable folder.
 - An empty subtitle file means no transcript, and no summary is asked for.
 - Values from the internet (titles, channels) are kept to one line in info.md.
-- The transcript is untrusted text: the summary engine gets no tools, no MCP servers, no web search, and
-  runs in an empty temporary folder.
+- The transcript is untrusted text: the summary command is split like a shell line but never run
+  through a shell, gets the prompt on stdin, runs in an empty temporary folder with a 10 minute limit,
+  and only its stdout is kept. An empty command turns summaries off.
 
 ## Shared data
 

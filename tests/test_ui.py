@@ -26,7 +26,7 @@ def _wait(cond, seconds=10):
 
 def _window(tmp_path, **over):
     _app()
-    s = settings.Settings(library=tmp_path / "lib")
+    s = settings.Settings(library=tmp_path / "lib", summary_command="summarize-tool")
     asked = []
     runners = {"fetch": lambda url: meta(), "download": FakeYtDlp(), "summary": summary_ok,
                "launch": lambda argv: None, "confirm": lambda text, n: asked.append(n) or True,
@@ -82,10 +82,10 @@ def test_settings_are_saved(tmp_path):
     w = _window(tmp_path)
     p = w.page("Settings")
     p.library.setText(str(tmp_path / "mine"))
-    p.engine.setCurrentIndex(p.engine.findData("cli-b"))
+    p.summary_command.setText("  my-summarizer --no-tools  ")
     p.save()
     s = settings.load()
-    assert (s.library, s.engine) == (tmp_path / "mine", "cli-b")
+    assert (s.library, s.summary_command) == (tmp_path / "mine", "my-summarizer --no-tools")
 
 
 def test_library_lists_videos_and_makes_a_summary(tmp_path):
@@ -139,7 +139,7 @@ def test_the_one_off_folder_is_cleared_after_queueing(tmp_path):
 
 def test_summary_is_not_ticked_when_summaries_are_off(tmp_path):
     w = _window(tmp_path)
-    w.apply_settings(settings.Settings(library=tmp_path / "lib", engine="off"))
+    w.apply_settings(settings.Settings(library=tmp_path / "lib", summary_command=""))
     d = w.page("Download")
     d.apply_preset("research")
     assert not d.part_boxes["summary"].isChecked()

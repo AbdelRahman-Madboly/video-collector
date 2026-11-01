@@ -1,5 +1,9 @@
 # Creator Video Collector 2: offline videos and research material for other tools
 
+> Note, 2026-11-02: the two built-in summary engines described here were replaced by one
+> **Summary command** setting: any command that reads a transcript on stdin and prints a summary.
+> See the README.
+
 Date: 2026-10-27. Rebuilds the window and adds summaries, an organized library and settings around the
 existing yt-dlp core (`downloader.py`) and subtitle cleaner (`subtitles.py`), which stay.
 

@@ -23,7 +23,6 @@ from . import theme
 PARTS = [("video", "Video (MP4)"), ("audio", "Audio (MP3)"), ("thumbnail", "Thumbnail"),
          ("transcript", "Transcript"), ("summary", "Summary"), ("raw", "Raw subtitles"),
          ("info_json", "yt-dlp info.json")]
-ENGINE_NAMES = {"cli-a": "CLI A", "cli-b": "CLI B", "off": "Off"}
 PROGRESS = re.compile(r"\[download\]\s+([\d.]+)%")
 
 
@@ -268,7 +267,7 @@ class DownloadPage(_Page):
         has_video = "video" in parts
         self.quality.setVisible(has_video)
         self.quality_label.setVisible(has_video)
-        off = self.win.settings.engine == "off"
+        off = not summarize.enabled(self.win.settings.summary_command)
         self.part_boxes["summary"].setEnabled(not off)
         if off and self.part_boxes["summary"].isChecked():
             self.part_boxes["summary"].blockSignals(True)
@@ -376,7 +375,7 @@ class DownloadPage(_Page):
         for url in urls:
             self._jobs.append(jobs.Job(url=url, project=self.project.currentText().strip(), parts=set(parts),
                                        quality=quality, format_selector=fmt, library=self.target_library(),
-                                       langs=s.subtitle_langs, engine=s.engine))
+                                       langs=s.subtitle_langs, summary_command=s.summary_command))
             QListWidgetItem(f"{url} · Waiting", self.queue)
         self.links.clear()
         self.preview.hide()
@@ -524,7 +523,7 @@ class LibraryPage(_Page):
         self.btn_folder.setEnabled(e is not None)
         self.btn_index.setEnabled(e is not None)
         self.btn_summary.setEnabled(bool(e and e.has_summary))
-        self.btn_make.setEnabled(bool(e and e.has_transcript and self.win.settings.engine != "off"))
+        self.btn_make.setEnabled(bool(e and e.has_transcript and summarize.enabled(self.win.settings.summary_command)))
 
     def _open(self, path: Path) -> None:
         self.win.runners["launch"](["xdg-open", str(path)])
@@ -554,8 +553,8 @@ class LibraryPage(_Page):
             return
         self.state.setText("Writing the summary…")
         self.btn_make.setEnabled(False)
-        engine, runner = self.win.settings.engine, self.win.runners["summary"]
-        self.win.run(lambda sig: jobs.make_summary(e.folder, engine, runner), self._made)
+        command, runner = self.win.settings.summary_command, self.win.runners["summary"]
+        self.win.run(lambda sig: jobs.make_summary(e.folder, command, runner), self._made)
 
     def _made(self, ok) -> None:
         self.state.setText("Summary written." if ok is True else "No summary: see the video's info.md.")
@@ -589,20 +588,18 @@ class SettingsPage(_Page):
         self.quality.addItems(RESOLUTION_OPTIONS)
         self.quality.setCurrentText(s.quality)
         self.langs = QLineEdit(s.subtitle_langs)
-        self.engine = QComboBox()
-        for k in summarize.ENGINES:
-            self.engine.addItem(ENGINE_NAMES[k], k)
-        self.engine.setCurrentIndex(max(0, self.engine.findData(s.engine)))
+        self.summary_command = QLineEdit(s.summary_command)
+        self.summary_command.setPlaceholderText("Off. A command that reads a transcript on stdin and prints a summary")
         self.dark = QCheckBox("Dark")
         self.dark.setChecked(s.dark)
         rows = [("Library folder", lib_row), ("Default project", self.project), ("Default download", self.preset),
                 ("Video quality", self.quality), ("Subtitle languages", self.langs),
-                ("Summaries written by", self.engine), ("Look", self.dark)]
+                ("Summary command", self.summary_command), ("Look", self.dark)]
         for i, (name, w) in enumerate(rows):
             g.addWidget(_label(name, "h2"), i, 0)
             (g.addLayout if isinstance(w, QHBoxLayout) else g.addWidget)(w, i, 1)
-        g.addWidget(_label("Videos go to <library>/<project>/<date> <title>/. Summaries run with no tools, "
-                           "from your own login.", "muted", wrap=True), len(rows), 0, 1, 2)
+        g.addWidget(_label("Videos go to <library>/<project>/<date> <title>/. The summary command gets the prompt "
+                           "and transcript on stdin, runs in an empty folder and prints Markdown.", "muted", wrap=True), len(rows), 0, 1, 2)
         g.setColumnStretch(1, 1)
         self.lay.addWidget(card)
         b_save = QPushButton("Save settings")
@@ -637,7 +634,7 @@ class SettingsPage(_Page):
         s = replace(self.win.settings, library=Path(self.library.text()).expanduser(),
                     default_project=self.project.text().strip(), preset=self.preset.currentData(),
                     quality=self.quality.currentText(), subtitle_langs=self.langs.text().strip() or settings.Settings().subtitle_langs,
-                    engine=self.engine.currentData(), dark=self.dark.isChecked())
+                    summary_command=self.summary_command.text().strip(), dark=self.dark.isChecked())
         settings.save(s)
         self.win.apply_settings(s)
         self.saved.setText("Saved.")
