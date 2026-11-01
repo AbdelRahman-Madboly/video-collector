@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 
 @dataclass(frozen=True)
@@ -26,10 +25,11 @@ class VideoMetadata:
     duration: str = ""
     is_playlist: bool = False
     playlist_count: int = 0
-
-
-def ensure_tool_exists(tool_name: str) -> bool:
-    return shutil.which(tool_name) is not None
+    video_id: str = ""
+    url: str = ""
+    upload_date: str = ""                      # YYYY-MM-DD
+    entries: tuple = ()                        # links of a playlist's videos
+    thumbnail: str = ""                        # link of the thumbnail picture
 
 
 def resolution_to_format(resolution: str) -> str:
@@ -111,69 +111,68 @@ def parse_metadata(raw: dict) -> VideoMetadata:
         duration=info.get("duration_string") or "",
         is_playlist=is_playlist,
         playlist_count=playlist_count,
+        video_id=str(info.get("id") or ""),
+        thumbnail=(info.get("thumbnail") or "") if is_web_link(info.get("thumbnail") or "") else "",
+        url=info.get("webpage_url") or info.get("original_url") or "",
+        upload_date=_iso_day(info.get("upload_date") or ""),
+        entries=tuple(e.get("webpage_url") or e.get("url") or "" for e in (raw.get("entries") or []) if e)
+        if is_playlist else (),
     )
 
 
-def fetch_metadata(url: str, allow_playlist: bool) -> VideoMetadata:
-    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), url]
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def _iso_day(yyyymmdd: str) -> str:
+    return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}" if len(yyyymmdd) == 8 else ""
+
+
+def is_web_link(url: str) -> bool:
+    """Only http(s) links reach yt-dlp: anything else could be read as an option or a local file."""
+    return bool(re.match(r"^https?://[^\s]+$", url or ""))
+
+
+def require_web_link(url: str) -> str:
+    if not is_web_link(url):
+        raise ValueError(f"Not a web link: {url[:80]}")
+    return url
+
+
+def fetch_metadata(url: str, allow_playlist: bool, runner=None) -> VideoMetadata:
+    """One video's details, or with allow_playlist a playlist's video links (read flat: only the list)."""
+    from . import procs
+    flat = ["--flat-playlist"] if allow_playlist else []
+    command = ["yt-dlp", "-J", "--skip-download", *playlist_args(allow_playlist), *flat, "--", require_web_link(url)]
+    result = (runner or procs.run)(command, capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"yt-dlp check failed with exit code {result.returncode}")
     return parse_metadata(json.loads(result.stdout))
 
 
-def build_download_command(
-    url: str,
-    target_folder: Path,
-    *,
-    allow_playlist: bool,
-    download_video: bool,
-    download_audio: bool,
-    download_subtitles: bool,
-    clean_txt: bool,
-    download_thumbnail: bool,
-    download_description: bool,
-    download_info_json: bool,
-    selected_format: Optional[str],
-    fallback_resolution: str,
-    subtitle_languages: str,
-) -> List[str]:
-    output_template = str(target_folder / "%(title).120B [%(id)s].%(ext)s")
-    command = ["yt-dlp", url, "-o", output_template, "--newline", *playlist_args(allow_playlist)]
-
-    if download_audio and not download_video:
-        command.extend(["--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"])
-    elif download_video:
-        command.extend([
-            "-f", selected_format or resolution_to_format(fallback_resolution),
-            "--merge-output-format", "mp4",
-            "--remux-video", "mp4",
-        ])
-    else:
-        command.append("--skip-download")
-
-    if download_subtitles or clean_txt:
-        command.extend([
-            "--write-subs",
-            "--write-auto-subs",
-            "--sub-langs", subtitle_languages,
-            "--sub-format", "vtt",
-        ])
-
-    if download_thumbnail:
-        command.extend(["--write-thumbnail", "--convert-thumbnails", "jpg"])
-    if download_description:
-        command.append("--write-description")
-    if download_info_json:
-        command.append("--write-info-json")
-
-    command.append("--no-part")
-    return command
-
-
 def run_command_stream(command: List[str], on_line: Callable[[str], None]) -> int:
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    assert process.stdout is not None
-    for line in process.stdout:
-        on_line(line.rstrip())
-    return process.wait()
+    from . import procs
+    return procs.stream(command, on_line)
+
+
+def build_job_command(url: str, folder: Path, missing: set, *, format_selector: Optional[str],
+                      fallback_resolution: str, subtitle_languages: str) -> List[str]:
+    """yt-dlp for one video into its library folder, asking only for the parts still missing.
+    Parts: video, audio, thumbnail, subs (into raw/), info_json (into raw/)."""
+    folder = Path(folder)
+    require_web_link(url)
+    command = ["yt-dlp", "--no-playlist", "--newline", "--no-part", "--no-overwrites"]
+    if "audio" in missing:
+        command += ["-o", str(folder / "audio.%(ext)s"),
+                    "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"]
+    elif "video" in missing:
+        command += ["-o", str(folder / "video.%(ext)s"),
+                    "-f", format_selector or resolution_to_format(fallback_resolution),
+                    "--merge-output-format", "mp4", "--remux-video", "mp4"]
+    else:
+        command += ["-o", str(folder / "video.%(ext)s"), "--skip-download"]
+    if "thumbnail" in missing:
+        command += ["-o", f"thumbnail:{folder / 'thumbnail.%(ext)s'}", "--write-thumbnail", "--convert-thumbnails", "jpg"]
+    if "subs" in missing:
+        command += ["-o", f"subtitle:{folder / 'raw' / 'sub.%(ext)s'}", "--write-subs", "--write-auto-subs",
+                    "--sub-langs", subtitle_languages, "--sub-format", "vtt",
+                    "--sleep-subtitles", "2"]          # YouTube answers 429 to quick subtitle requests
+    if "info_json" in missing:
+        command += ["-o", f"infojson:{folder / 'raw' / 'info'}", "--write-info-json"]
+    return command + ["--", url]                 # after "--" the link can never be read as an option

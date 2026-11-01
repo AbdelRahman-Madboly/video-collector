@@ -37,7 +37,7 @@ download location is not remembered.
 6. **Library page**: every collected video by project, with thumbnail, title and what it has (video,
    transcript, summary); buttons to play, open the folder, open the summary, make a summary.
 7. **Settings** (saved in `~/.config/video-collector/settings.json`): library folder, default project,
-   default preset, quality, subtitle languages (`en.*,ar.*`), summary engine, light/dark, and the yt-dlp
+   default preset, quality, subtitle languages (`en,en-orig,en-US,en-GB,ar,ar-orig`), summary engine, light/dark, and the yt-dlp
    version with an Update button (`pkexec yt-dlp -U`, since it is installed system-wide).
 8. The Tools Hub shows its status: the collector publishes `~/My-Tools/shared-data/video-collector.json`
    (videos collected, last one, library path).

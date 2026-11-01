@@ -6,15 +6,14 @@ BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/Desktop"
 APPLICATIONS_DIR="$HOME/.local/share/applications"
 
-CURRENT_DIR="$(pwd -P)"
+CURRENT_DIR="$APP_DIR"
 SOURCE_SCRIPT="$CURRENT_DIR/youtube_visual_collector.py"
 SOURCE_SRC_DIR="$CURRENT_DIR/src"
 SOURCE_DOCS_DIR="$CURRENT_DIR/docs"
 SOURCE_REQUIREMENTS="$CURRENT_DIR/requirements.txt"
 
 if [ ! -f "$SOURCE_SCRIPT" ]; then
-  echo "ERROR: youtube_visual_collector.py not found in current folder."
-  echo "Run this installer from the extracted package folder."
+  echo "ERROR: youtube_visual_collector.py not found next to this installer."
   exit 1
 fi
 
@@ -59,9 +58,11 @@ if [ -f "$SOURCE_REQUIREMENTS" ]; then
   fi
 fi
 
+UV="$HOME/.local/bin/uv"; [ -x "$UV" ] || UV="$(command -v uv)"
+"$UV" sync --project "$APP_DIR" --quiet
 cat > "$BIN_DIR/youtube-visual-collector" <<EOF
 #!/usr/bin/env bash
-python3 "$APP_DIR/youtube_visual_collector.py"
+cd "$APP_DIR" && exec "$UV" run --project "$APP_DIR" python youtube_visual_collector.py "\$@"
 EOF
 chmod +x "$BIN_DIR/youtube-visual-collector"
 

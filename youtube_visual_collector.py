@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Compatibility launcher for Creator Video Collector."""
+"""Launcher kept for the old command name: starts Creator Video Collector."""
+import sys
+from pathlib import Path
 
-from src.creator_video_collector.app import main
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+from creator_video_collector.__main__ import main
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
