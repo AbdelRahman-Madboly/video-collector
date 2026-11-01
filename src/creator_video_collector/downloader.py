@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 
 
 @dataclass(frozen=True)
@@ -31,10 +30,6 @@ class VideoMetadata:
     upload_date: str = ""                      # YYYY-MM-DD
     entries: tuple = ()                        # links of a playlist's videos
     thumbnail: str = ""                        # link of the thumbnail picture
-
-
-def ensure_tool_exists(tool_name: str) -> bool:
-    return shutil.which(tool_name) is not None
 
 
 def resolution_to_format(resolution: str) -> str:
@@ -149,55 +144,6 @@ def fetch_metadata(url: str, allow_playlist: bool, runner=None) -> VideoMetadata
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"yt-dlp check failed with exit code {result.returncode}")
     return parse_metadata(json.loads(result.stdout))
-
-
-def build_download_command(
-    url: str,
-    target_folder: Path,
-    *,
-    allow_playlist: bool,
-    download_video: bool,
-    download_audio: bool,
-    download_subtitles: bool,
-    clean_txt: bool,
-    download_thumbnail: bool,
-    download_description: bool,
-    download_info_json: bool,
-    selected_format: Optional[str],
-    fallback_resolution: str,
-    subtitle_languages: str,
-) -> List[str]:
-    output_template = str(target_folder / "%(title).120B [%(id)s].%(ext)s")
-    command = ["yt-dlp", url, "-o", output_template, "--newline", *playlist_args(allow_playlist)]
-
-    if download_audio and not download_video:
-        command.extend(["--extract-audio", "--audio-format", "mp3", "--audio-quality", "0"])
-    elif download_video:
-        command.extend([
-            "-f", selected_format or resolution_to_format(fallback_resolution),
-            "--merge-output-format", "mp4",
-            "--remux-video", "mp4",
-        ])
-    else:
-        command.append("--skip-download")
-
-    if download_subtitles or clean_txt:
-        command.extend([
-            "--write-subs",
-            "--write-auto-subs",
-            "--sub-langs", subtitle_languages,
-            "--sub-format", "vtt",
-        ])
-
-    if download_thumbnail:
-        command.extend(["--write-thumbnail", "--convert-thumbnails", "jpg"])
-    if download_description:
-        command.append("--write-description")
-    if download_info_json:
-        command.append("--write-info-json")
-
-    command.append("--no-part")
-    return command
 
 
 def run_command_stream(command: List[str], on_line: Callable[[str], None]) -> int:
