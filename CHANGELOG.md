@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Summaries come from one **Summary command** setting: any command that reads a transcript on stdin and
+  prints a summary. It is empty (summaries off) until you set it. The two built-in engines are gone.
+  An old `engine` value in `settings.json` is ignored.
+- CI workflow that runs the tests on every push, with Qt offscreen.
+- README: a Status section and the summary command.
+
 ## 2.0.0 - 2026-11-01
 
 Collector 2: a new PySide6 window around the existing yt-dlp and subtitle core.
