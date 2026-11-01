@@ -211,3 +211,37 @@ def test_stop_all_ends_running_processes():
 def test_only_web_thumbnails_are_kept():
     from creator_video_collector import downloader
     assert downloader.parse_metadata({"id": "x", "title": "T", "thumbnail": "file:///etc/passwd"}).thumbnail == ""
+
+
+def test_a_failed_download_still_leaves_a_readable_folder(tmp_path):
+    def broken(cmd, on_line):
+        on_line("ERROR: video unavailable")
+        return 1
+    import pytest
+    with pytest.raises(jobs.JobError):
+        run(tmp_path, "watch", dl=broken)
+    folders = [d for d in (tmp_path / "lib" / "Workshop").iterdir() if d.is_dir()]
+    entry = library.read_entry(folders[0])
+    assert entry is not None and entry.video_id == "abc123" and not entry.has_video
+
+
+def test_an_empty_subtitle_gives_no_transcript_and_no_summary(tmp_path):
+    class Silent(FakeYtDlp):
+        def __call__(self, cmd, on_line):
+            code = super().__call__(cmd, on_line)
+            for f in tmp_path.rglob("*.vtt"):
+                f.write_text("WEBVTT\n\n00:00:01.000 --> 00:00:03.000\n[Music]\n")
+            return code
+    called = []
+    e, _ = run(tmp_path, "research", dl=Silent(), summary=lambda c, **k: called.append(c))
+    assert not e.has_transcript and not called
+    text = (e.folder / "info.md").read_text()
+    assert "**Transcript:** none" in text and "**Summary:** none, no transcript" in text
+
+
+def test_a_summary_is_not_asked_for_an_empty_transcript(tmp_path):
+    e, _ = run(tmp_path, "watch")
+    (e.folder / "transcript.txt").write_text("   \n")
+    called = []
+    assert jobs.make_summary(e.folder, "cli-a", runner=lambda c, **k: called.append(c)) is False
+    assert not called

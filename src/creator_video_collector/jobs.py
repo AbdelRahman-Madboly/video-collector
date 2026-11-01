@@ -79,6 +79,13 @@ def _pick_subtitle(raw: Path, langs: str) -> Path | None:
     return files[0] if files else None
 
 
+def _has_text(path: Path) -> bool:
+    try:
+        return bool(path.read_text(encoding="utf-8", errors="ignore").strip())
+    except OSError:
+        return False
+
+
 def shared_dir() -> Path:
     return Path(os.environ.get("MYTOOLS_SHARED") or Path.home() / "My-Tools" / "shared-data")
 
@@ -103,7 +110,7 @@ def make_summary(folder: Path, engine: str, runner=None) -> bool:
     """Write summary.md from transcript.txt; on failure keep everything and note why in info.md."""
     entry = library.read_entry(folder)
     transcript = (folder / "transcript.txt")
-    if entry is None or not transcript.exists():
+    if entry is None or not _has_text(transcript):
         return False
     from . import procs
     try:
@@ -138,6 +145,10 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
     meta = fetch(job.url)
     folder = library.video_dir(job.library, job.project, meta.title, meta.video_id, today or date.today())
     on_line(f"Folder: {folder}")
+    card = {"title": meta.title, "channel": meta.uploader, "url": meta.url or job.url, "id": meta.video_id,
+            "duration": meta.duration, "uploaded": meta.upload_date,
+            "downloaded": (today or date.today()).isoformat(), "project": folder.parent.name}
+    library.write_info(folder, card)            # written first, so a failed download still leaves a readable folder
     need = _missing(folder, parts)
     if need:
         lines: list[str] = []
@@ -157,21 +168,25 @@ def run(job: Job, on_line: Callable[[str], None], fetch: Callable[[str], VideoMe
         _tidy_stray_subtitles(folder)
 
     transcript_state = "none"
-    if (folder / "transcript.txt").exists():
+    transcript = folder / "transcript.txt"
+    if transcript.exists() and not _has_text(transcript):
+        transcript.unlink()                      # an empty subtitle file is no transcript
+    if transcript.exists():
         transcript_state = "yes"
     elif "transcript" in parts and (sub := _pick_subtitle(folder / "raw", job.langs)):
-        subtitles.clean_subtitle_file_to_txt(sub, folder / "transcript.txt")
-        transcript_state = sub.name.split(".")[-2]
+        subtitles.clean_subtitle_file_to_txt(sub, transcript)
+        if _has_text(transcript):
+            transcript_state = sub.name.split(".")[-2]
+        else:
+            transcript.unlink()
+            on_line("The subtitles have no text: no transcript")
     if "raw" not in parts and (folder / "raw").exists():
         for f in subtitles.find_subtitle_files(folder / "raw"):
             f.unlink()
         if not any((folder / "raw").iterdir()):
             (folder / "raw").rmdir()
 
-    library.write_info(folder, {"title": meta.title, "channel": meta.uploader, "url": meta.url or job.url,
-                                "id": meta.video_id, "duration": meta.duration, "uploaded": meta.upload_date,
-                                "downloaded": (today or date.today()).isoformat(),
-                                "project": folder.parent.name, "transcript": transcript_state})
+    library.write_info(folder, {"transcript": transcript_state})
     if "summary" in parts and not (folder / "summary.md").exists():
         if (folder / "transcript.txt").exists():
             on_line("Writing the summary…")
