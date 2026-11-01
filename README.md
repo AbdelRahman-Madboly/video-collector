@@ -1,5 +1,7 @@
 # Creator Video Collector
 
+**Status:** 2.0.0, finished. All tests pass; a first check on a few real videos is still open.
+
 Download videos for offline watching and turn them into research material that other tools can
 read: a clean transcript, the thumbnail and a summary, in one folder per video, grouped by project.
 
@@ -42,6 +44,15 @@ Written by `cli-a` (default) or `cli-b` from your own login, with no tools at al
 temporary folder: the transcript is text from the internet and is only ever summarized. Long transcripts are
 summarized in parts, then together. A failure keeps the download and is noted in `info.md`.
 
+## What it does not do
+
+- No speech-to-text: a video without subtitles gets no transcript and no summary.
+- Downloads saved to a one-off folder (**Change…**) do not show on the Library page, which reads the
+  library folder from Settings.
+- It does not update yt-dlp by itself; press **Update yt-dlp** in Settings when sites start failing.
+- No cookies or logins: private or age-restricted videos fail with the yt-dlp error.
+- Linux only (tested on Ubuntu).
+
 ## Install and develop
 
 ```sh
@@ -49,4 +60,10 @@ summarized in parts, then together. A failure keeps the download and is noted in
 uv run python -m pytest -q                  # tests never touch the network, yt-dlp or the summary tool
 ```
 
-Needs `yt-dlp` and `ffmpeg`. Only http(s) links reach yt-dlp, always after `--`.
+Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `yt-dlp` and `ffmpeg`, and for summaries a logged-in
+`cli-a` or `cli-b` command. Only http(s) links reach yt-dlp, always after `--`.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the modules.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
