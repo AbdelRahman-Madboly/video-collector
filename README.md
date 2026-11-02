@@ -1,5 +1,7 @@
 # Creator Video Collector
 
+<img src="docs/readme-icon.png" width="96" align="right" alt="Creator Video Collector icon">
+
 Download videos for offline watching and turn them into research material: a clean transcript, the
 thumbnail and an optional summary, in one folder per video, grouped by project. A PySide6 window around
 [yt-dlp](https://github.com/yt-dlp/yt-dlp).
@@ -117,3 +119,7 @@ the modules.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+## Author
+
+Designed and built by Abdel Rahman Mohamad EL-Sayed ([AbdelRahman-Madboly](https://github.com/AbdelRahman-Madboly) on GitHub).
