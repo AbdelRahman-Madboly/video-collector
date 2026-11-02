@@ -1,17 +1,83 @@
+<div align="center">
+
+<img src="docs/readme-icon.png" width="110" alt="Creator Video Collector icon">
+
 # Creator Video Collector
 
-<img src="docs/readme-icon.png" width="96" align="right" alt="Creator Video Collector icon">
+**Download videos for offline watching and turn them into research material: a clean transcript, the thumbnail and an optional summary, in one folder per video, grouped by project.**
 
-Download videos for offline watching and turn them into research material: a clean transcript, the
-thumbnail and an optional summary, in one folder per video, grouped by project. A PySide6 window around
-[yt-dlp](https://github.com/yt-dlp/yt-dlp).
+[![CI](https://github.com/AbdelRahman-Madboly/video-collector/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdelRahman-Madboly/video-collector/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Ubuntu-E95420?logo=ubuntu&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![PySide6](https://img.shields.io/badge/UI-PySide6-41CD52?logo=qt&logoColor=white)
+![yt-dlp](https://img.shields.io/badge/downloads-yt--dlp-FF0000)
+![bubblewrap](https://img.shields.io/badge/sandbox-bubblewrap-555555)
+
+[How it works](#how-it-works) · [Install](#install) · [What lands on disk](#what-lands-on-disk) · [Summaries](#summaries) · [What it does not do](#what-it-does-not-do) · [Roadmap](#roadmap)
+
+</div>
+
+## Why Creator Video Collector
+
+Saving a video for later is easy; keeping it findable, with its transcript and notes next to it, is
+not. Creator Video Collector is a PySide6 window around [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+that files every download into a project library on disk, so any tool that reads files can be
+pointed at a project folder.
+
+## Highlights
+
+- **Four download presets.** Watch offline, Research, Everything or Audio, picked per batch.
+- **Clean transcripts.** Subtitles are turned into readable text in `transcript.txt`.
+- **A library by project.** One folder per video with `info.md`, and a project `INDEX.md` listing
+  every video, its link and the summary's first line.
+- **Never overwrites.** A second download of the same link in the same project adds only what is
+  missing; an edited summary is kept.
+- **Bring your own summary command.** Summaries are off until you set one, and the command runs
+  with a small environment, a time limit and, by default, inside a `bwrap` sandbox with no network.
+- **Check before you download.** **Check link** shows the title, channel, length, subtitles and the
+  real qualities of a single link.
+
+## How it works
+
+```mermaid
+flowchart LR
+    U["Links + project<br/>+ preset"] --> Y["yt-dlp<br/>(http(s) links only, after --)"]
+    Y --> F["Video folder<br/>info.md written first"]
+    F --> T["Subtitles to<br/>transcript.txt"]
+    T -- "summary chosen and<br/>a command is set" --> S["Summary command<br/>in bwrap sandbox"]
+    S --> SM["summary.md"]
+    T --> I["Project INDEX.md"]
+    SM --> I
+```
+
+`info.md` is written before the download, so a failed download still leaves a readable folder. A
+summary failure keeps the download and is noted in `info.md`.
 
 ## Status
 
 2.0.0 plus unreleased changes (see [CHANGELOG.md](CHANGELOG.md)). All tests pass and run in CI; a first
 check on a few real videos is still open.
 
-## What it does
+## Install
+
+Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `yt-dlp` and `ffmpeg`, and `bwrap` for sandboxed
+summaries.
+
+```sh
+sudo apt install ffmpeg bubblewrap
+./install_youtube_visual_collector.sh       # uv environment, launcher, menu entry
+```
+
+## Run
+
+```sh
+youtube-visual-collector                    # after installing
+uv run python youtube_visual_collector.py   # straight from the folder
+```
+
+## Usage
 
 Open **Creator Video Collector** from the desktop or the app menu (`youtube-visual-collector` in a terminal).
 
@@ -44,15 +110,22 @@ Open **Creator Video Collector** from the desktop or the app menu (`youtube-visu
 Any tool that reads files can be pointed at a project folder. A second download of the same link in the
 same project adds only what is missing and never overwrites a file (an edited summary is kept).
 
-### Summaries
+## Summaries
 
 Summaries are off until you set **Summary command** in Settings. The summary command is any command that
 reads a transcript on stdin and prints a summary on stdout, for example a language model's command-line
 tool. The collector sends it a prompt that asks for four Markdown sections, followed by the transcript.
 
-**Warning:** the transcript is untrusted text from the internet and can contain instructions aimed at
-the tool that reads it. Use a command that cannot run tools, edit files or browse, or make sure those
-features are turned off. The collector limits what the command can do:
+> [!WARNING]
+> The transcript is untrusted text from the internet and can contain instructions aimed at
+> the tool that reads it. Use a command that cannot run tools, edit files or browse, or make sure those
+> features are turned off.
+
+Long transcripts are summarized in parts, then together. A failure keeps the download and is noted in
+`info.md`.
+
+<details>
+<summary>How the collector limits the summary command</summary>
 
 - The prompt and transcript go to the command on stdin only, never as an argument.
 - The command line is split like a shell line, but no shell runs it.
@@ -76,8 +149,7 @@ features are turned off. The collector limits what the command can do:
   "summary_guards": {"my-assistant": ["--no-tools", "--sandbox read-only"]}
   ```
 
-Long transcripts are summarized in parts, then together. A failure keeps the download and is noted in
-`info.md`.
+</details>
 
 ## What it does not do
 
@@ -90,22 +162,9 @@ Long transcripts are summarized in parts, then together. A failure keeps the dow
 - No cookies or logins: private or age-restricted videos fail with the yt-dlp error.
 - Linux only (tested on Ubuntu).
 
-## Install
+## Roadmap
 
-Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `yt-dlp` and `ffmpeg`, and `bwrap` for sandboxed
-summaries.
-
-```sh
-sudo apt install ffmpeg bubblewrap
-./install_youtube_visual_collector.sh       # uv environment, launcher, menu entry
-```
-
-## Run
-
-```sh
-youtube-visual-collector                    # after installing
-uv run python youtube_visual_collector.py   # straight from the folder
-```
+- [ ] First check on a few real videos
 
 ## Develop
 
@@ -116,10 +175,21 @@ uv run python -m pytest -q                  # tests never touch the network, yt-
 Only http(s) links reach yt-dlp, always after `--`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for
 the modules.
 
+## Layout
+
+| Path | What it is |
+|---|---|
+| `src/creator_video_collector/` | The app package: downloader, jobs, library, subtitles, summarize, settings, `ui/` |
+| `youtube_visual_collector.py` | Launcher for running straight from the folder |
+| `install_youtube_visual_collector.sh` | uv environment, launcher and menu entry |
+| `tests/` | pytest suite |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module layout |
+| [`docs/design/`](docs/design/) | Design notes and plan |
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
 
 ## Author
 
-Designed and built by Abdel Rahman Mohamad EL-Sayed ([AbdelRahman-Madboly](https://github.com/AbdelRahman-Madboly) on GitHub).
+Designed and built by **Abdel Rahman Mohamad EL-Sayed** ([@AbdelRahman-Madboly](https://github.com/AbdelRahman-Madboly)).
