@@ -17,6 +17,8 @@
 
 [How it works](#how-it-works) · [Install](#install) · [What lands on disk](#what-lands-on-disk) · [Summaries](#summaries) · [What it does not do](#what-it-does-not-do) · [Roadmap](#roadmap)
 
+<img src="docs/screenshots/01-download.png" width="760" alt="video-collector: Download">
+
 </div>
 
 ## Why Creator Video Collector
@@ -54,6 +56,14 @@ flowchart LR
 
 `info.md` is written before the download, so a failed download still leaves a readable folder. A
 summary failure keeps the download and is noted in `info.md`.
+
+## Screenshots
+
+| Library | Settings |
+|---|---|
+| ![Library](docs/screenshots/02-library-example.png) | ![Settings](docs/screenshots/03-settings.png) |
+
+<sub>Made-up example videos.</sub>
 
 ## Status
 
