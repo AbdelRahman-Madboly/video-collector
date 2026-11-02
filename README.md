@@ -41,6 +41,10 @@ pointed at a project folder.
 - **Check before you download.** **Check link** shows the title, channel, length, subtitles and the
   real qualities of a single link.
 
+<img src="docs/concept-in-use.jpg" width="640" alt="video-collector in use">
+
+<sub>Concept image of the app on a laptop. The screen shows a real screenshot from demo data.</sub>
+
 ## How it works
 
 ```mermaid
